@@ -3,10 +3,10 @@ import Sidebar from './Sidebar'
 
 export default function AppLayout() {
   return (
-    <div className="flex min-h-screen">
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
       <Sidebar />
-      <main className="flex-1 overflow-auto">
-        <div className="p-8 max-w-7xl mx-auto">
+      <main style={{ flex: 1, overflow: 'auto', background: 'var(--bg-primary)' }}>
+        <div style={{ padding: '32px', maxWidth: 1280, margin: '0 auto' }}>
           <Outlet />
         </div>
       </main>

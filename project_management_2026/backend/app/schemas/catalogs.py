@@ -1,113 +1,157 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel
 from typing import Optional
-from datetime import date, datetime
+from datetime import datetime, date
 
-
-# ─── AUTH ───────────────────────────────────────────────────────────────────
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-    user: "UserOut"
-
-
-class TokenData(BaseModel):
-    username: Optional[str] = None
-
-
-class UserCreate(BaseModel):
-    username: str
-    email: str
-    full_name: Optional[str] = None
-    password: str
-    is_admin: bool = False
-
-
-class UserOut(BaseModel):
-    user_id: int
-    username: str
-    email: str
-    full_name: Optional[str]
-    is_active: bool
-    is_admin: bool
-
-    class Config:
-        from_attributes = True
-
-
-# ─── ENTITY TYPES ───────────────────────────────────────────────────────────
-
-class EntityTypeBase(BaseModel):
+# ── Entity Types ──────────────────────────────────────────────────────
+class EntityTypeOut(BaseModel):
+    entity_type_id: int
     type_name: str
+    is_active: bool
+    created_at: Optional[datetime] = None
+    model_config = {"from_attributes": True}
 
-
-class EntityTypeCreate(EntityTypeBase):
-    pass
-
+class EntityTypeCreate(BaseModel):
+    type_name: str
+    is_active: bool = True
 
 class EntityTypeUpdate(BaseModel):
     type_name: Optional[str] = None
     is_active: Optional[bool] = None
 
-
-class EntityTypeOut(EntityTypeBase):
-    entity_type_id: int
+# ── Entities ──────────────────────────────────────────────────────────
+class EntityOut(BaseModel):
+    entity_id: int
+    entity_name: str
+    tax_id: str
+    entity_type_id: Optional[int] = None
+    entity_type_name: Optional[str] = None
+    main_address: Optional[str] = None
+    main_phone: Optional[str] = None
+    institutional_email: Optional[str] = None
+    website: Optional[str] = None
+    main_contact: Optional[str] = None
+    contact_position: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
     is_active: bool
-    created_at: datetime
+    created_at: Optional[datetime] = None
+    model_config = {"from_attributes": True}
 
-    class Config:
-        from_attributes = True
+class EntityCreate(BaseModel):
+    entity_name: str
+    tax_id: str
+    entity_type_id: int
+    main_address: Optional[str] = None
+    main_phone: Optional[str] = None
+    institutional_email: Optional[str] = None
+    website: Optional[str] = None
+    main_contact: Optional[str] = None
+    contact_position: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    is_active: bool = True
 
+class EntityUpdate(BaseModel):
+    entity_name: Optional[str] = None
+    tax_id: Optional[str] = None
+    entity_type_id: Optional[int] = None
+    main_address: Optional[str] = None
+    main_phone: Optional[str] = None
+    institutional_email: Optional[str] = None
+    website: Optional[str] = None
+    main_contact: Optional[str] = None
+    contact_position: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
 
-# ─── FINANCING TYPES ─────────────────────────────────────────────────────────
+# ── Executing Departments ─────────────────────────────────────────────
+class ExecutingDepartmentOut(BaseModel):
+    department_id: int
+    department_name: str
+    website: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    is_active: bool
+    created_at: Optional[datetime] = None
+    model_config = {"from_attributes": True}
 
-class FinancingTypeBase(BaseModel):
+class ExecutingDepartmentCreate(BaseModel):
+    department_name: str
+    website: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    is_active: bool = True
+
+class ExecutingDepartmentUpdate(BaseModel):
+    department_name: Optional[str] = None
+    website: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+
+# ── Execution Modalities ──────────────────────────────────────────────
+class ExecutionModalityOut(BaseModel):
+    execution_modality_id: int
+    modality_name: str
+    modality_description: Optional[str] = None
+    is_active: bool
+    created_at: Optional[datetime] = None
+    model_config = {"from_attributes": True}
+
+class ExecutionModalityCreate(BaseModel):
+    modality_name: str
+    modality_description: Optional[str] = None
+    is_active: bool = True
+
+class ExecutionModalityUpdate(BaseModel):
+    modality_name: Optional[str] = None
+    modality_description: Optional[str] = None
+
+# ── Financing Types ───────────────────────────────────────────────────
+class FinancingTypeOut(BaseModel):
+    financing_type_id: int
     financing_name: str
+    is_active: bool
+    model_config = {"from_attributes": True}
 
-
-class FinancingTypeCreate(FinancingTypeBase):
-    pass
-
+class FinancingTypeCreate(BaseModel):
+    financing_name: str
+    is_active: bool = True
 
 class FinancingTypeUpdate(BaseModel):
     financing_name: Optional[str] = None
-    is_active: Optional[bool] = None
 
-
-class FinancingTypeOut(FinancingTypeBase):
-    financing_type_id: int
-    is_active: bool
-
-    class Config:
-        from_attributes = True
-
-
-# ─── ORDERING OFFICIALS ──────────────────────────────────────────────────────
-
-class OrderingOfficialBase(BaseModel):
+# ── Ordering Officials ────────────────────────────────────────────────
+class OrderingOfficialOut(BaseModel):
+    official_id: int
     first_name: str
     second_name: Optional[str] = None
     first_surname: str
     second_surname: Optional[str] = None
-    identification_type: str
+    identification_type: Optional[str] = None
+    identification_number: Optional[str] = None
+    appointment_resolution: Optional[str] = None
+    resolution_date: Optional[date] = None
+    institutional_email: Optional[str] = None
+    phone: Optional[str] = None
+    is_active: bool
+    full_name: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+class OrderingOfficialCreate(BaseModel):
+    first_name: str
+    second_name: Optional[str] = None
+    first_surname: str
+    second_surname: Optional[str] = None
+    identification_type: str = "CC"
     identification_number: str
     appointment_resolution: Optional[str] = None
     resolution_date: Optional[date] = None
     institutional_email: Optional[str] = None
     phone: Optional[str] = None
-
-    @field_validator("identification_type")
-    @classmethod
-    def validate_id_type(cls, v):
-        allowed = ["CC", "CE", "TI", "PP", "NIT"]
-        if v not in allowed:
-            raise ValueError(f"Tipo de identificación debe ser uno de: {allowed}")
-        return v
-
-
-class OrderingOfficialCreate(OrderingOfficialBase):
-    pass
-
+    is_active: bool = True
 
 class OrderingOfficialUpdate(BaseModel):
     first_name: Optional[str] = None
@@ -120,39 +164,26 @@ class OrderingOfficialUpdate(BaseModel):
     resolution_date: Optional[date] = None
     institutional_email: Optional[str] = None
     phone: Optional[str] = None
-    is_active: Optional[bool] = None
 
-
-class OrderingOfficialOut(OrderingOfficialBase):
-    official_id: int
-    is_active: bool
-    created_at: datetime
-    full_name: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-    @classmethod
-    def from_orm_with_fullname(cls, obj):
-        data = cls.model_validate(obj)
-        parts = [obj.first_name, obj.second_name, obj.first_surname, obj.second_surname]
-        data.full_name = " ".join(p for p in parts if p)
-        return data
-
-
-# ─── PROJECT STATUSES ────────────────────────────────────────────────────────
-
-class ProjectStatusBase(BaseModel):
+# ── Project Statuses ──────────────────────────────────────────────────
+class ProjectStatusOut(BaseModel):
+    status_id: int
     status_code: str
     status_name: str
     status_color: Optional[str] = None
     status_order: Optional[int] = None
     status_description: Optional[str] = None
+    is_active: bool
+    created_at: Optional[datetime] = None
+    model_config = {"from_attributes": True}
 
-
-class ProjectStatusCreate(ProjectStatusBase):
-    pass
-
+class ProjectStatusCreate(BaseModel):
+    status_code: str
+    status_name: str
+    status_color: Optional[str] = "#0EA5E9"
+    status_order: Optional[int] = None
+    status_description: Optional[str] = None
+    is_active: bool = True
 
 class ProjectStatusUpdate(BaseModel):
     status_code: Optional[str] = None
@@ -160,13 +191,3 @@ class ProjectStatusUpdate(BaseModel):
     status_color: Optional[str] = None
     status_order: Optional[int] = None
     status_description: Optional[str] = None
-    is_active: Optional[bool] = None
-
-
-class ProjectStatusOut(ProjectStatusBase):
-    status_id: int
-    is_active: bool
-    created_at: datetime
-
-    class Config:
-        from_attributes = True

@@ -10,30 +10,33 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
 
   if (!isOpen) return null
 
-  const sizes = {
-    sm: 'max-w-md',
-    md: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-3xl',
-  }
+  const sizes = { sm: 480, md: 560, lg: 720, xl: 900 }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <div
-        className={`relative w-full ${sizes[size]} bg-ud-navy border border-white/10 
-          rounded-2xl shadow-2xl animate-fade-in`}
-      >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-          <h2 className="text-base font-semibold text-white">{title}</h2>
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 50,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+    }}>
+      <div onClick={onClose} style={{
+        position: 'absolute', inset: 0,
+        background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
+      }} />
+      <div className="card animate-fade-in" style={{
+        position: 'relative', width: '100%', maxWidth: sizes[size],
+        maxHeight: '90vh', overflowY: 'auto',
+      }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '18px 24px', borderBottom: '1px solid var(--border-color)',
+        }}>
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{title}</h2>
           <button onClick={onClose} className="btn-ghost">
             <X size={18} />
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        {/* Body */}
+        <div style={{ padding: 24 }}>{children}</div>
       </div>
     </div>
   )

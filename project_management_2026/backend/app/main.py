@@ -1,10 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
-from app.db.database import engine, Base
-
-# Crear tablas que no existen (solo app_users, las demás ya existen en la BD)
-Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="SIEXUD API",

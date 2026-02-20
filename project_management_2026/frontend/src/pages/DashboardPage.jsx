@@ -1,135 +1,75 @@
 import { useEffect, useState } from 'react'
-import { Building2, DollarSign, UserCheck, Activity, TrendingUp } from 'lucide-react'
-import {
-  entityTypesService,
-  financingTypesService,
-  orderingOfficialsService,
-  projectStatusesService,
-} from '../services/catalogs'
-import { useAuth } from '../context/AuthContext'
+import { Globe, Building2, University, Layers, DollarSign, UserCheck, Activity, ArrowUpRight } from 'lucide-react'
+import { entitiesService, entityTypesService, executingDepartmentsService, executionModalitiesService, financingTypesService, orderingOfficialsService, projectStatusesService } from '../services/catalogs'
 
-const statCards = [
-  {
-    label: 'Tipos de Entidad',
-    icon: Building2,
-    color: 'text-blue-400',
-    bg: 'bg-blue-500/10',
-    key: 'entityTypes',
-  },
-  {
-    label: 'Tipos de Financiación',
-    icon: DollarSign,
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-500/10',
-    key: 'financingTypes',
-  },
-  {
-    label: 'Funcionarios Ordenadores',
-    icon: UserCheck,
-    color: 'text-amber-400',
-    bg: 'bg-amber-500/10',
-    key: 'officials',
-  },
-  {
-    label: 'Estados de Proyecto',
-    icon: Activity,
-    color: 'text-purple-400',
-    bg: 'bg-purple-500/10',
-    key: 'statuses',
-  },
+const cards = [
+  { label: 'Entidades',          icon: Globe,       key: 'entities',      bg: 'rgba(14,165,233,0.08)',  color: '#0EA5E9', accent: 'stat-card-accent-sky',     path: '/catalogs/entities' },
+  { label: 'Tipos de Entidad',   icon: Building2,   key: 'entityTypes',   bg: 'rgba(185,28,60,0.08)',  color: '#B91C3C', accent: 'stat-card-accent-crimson', path: '/catalogs/entity-types' },
+  { label: 'Dependencias',       icon: University,  key: 'departments',   bg: 'rgba(30,58,110,0.08)',  color: '#1E3A6E', accent: 'stat-card-accent-navy',    path: '/catalogs/executing-departments' },
+  { label: 'Modalidades',        icon: Layers,      key: 'modalities',    bg: 'rgba(139,92,246,0.08)', color: '#8B5CF6', accent: 'stat-card-accent-emerald', path: '/catalogs/execution-modalities' },
+  { label: 'Financiaciones',     icon: DollarSign,  key: 'financing',     bg: 'rgba(16,185,129,0.08)', color: '#10B981', accent: 'stat-card-accent-emerald', path: '/catalogs/financing-types' },
+  { label: 'Funcionarios',       icon: UserCheck,   key: 'officials',     bg: 'rgba(245,158,11,0.08)', color: '#F59E0B', accent: 'stat-card-accent-sky',     path: '/catalogs/ordering-officials' },
+  { label: 'Estados',            icon: Activity,    key: 'statuses',      bg: 'rgba(239,68,68,0.08)',  color: '#EF4444', accent: 'stat-card-accent-crimson', path: '/catalogs/project-statuses' },
 ]
 
 export default function DashboardPage() {
-  const { user } = useAuth()
   const [counts, setCounts] = useState({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchAll = async () => {
-      try {
-        const [et, ft, oo, ps] = await Promise.all([
-          entityTypesService.list(),
-          financingTypesService.list(),
-          orderingOfficialsService.list(),
-          projectStatusesService.list(),
-        ])
-        setCounts({
-          entityTypes: et.data.length,
-          financingTypes: ft.data.length,
-          officials: oo.data.length,
-          statuses: ps.data.length,
-        })
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchAll()
+    Promise.all([
+      entitiesService.list(), entityTypesService.list(), executingDepartmentsService.list(),
+      executionModalitiesService.list(), financingTypesService.list(), orderingOfficialsService.list(), projectStatusesService.list(),
+    ]).then(([en, et, dep, mod, fin, off, ps]) => {
+      setCounts({ entities: en.data.length, entityTypes: et.data.length, departments: dep.data.length, modalities: mod.data.length, financing: fin.data.length, officials: off.data.length, statuses: ps.data.length })
+    }).finally(() => setLoading(false))
   }, [])
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Buenas noches'
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Header */}
-      <div>
-        <p className="text-gray-400 text-sm">{greeting},</p>
-        <h1 className="text-2xl font-bold text-white mt-0.5">
-          {user?.full_name || user?.username}
-        </h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Panel de administración del sistema SIEXUD
-        </p>
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+        <div>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>{greeting} 👋</p>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', marginTop: 2 }}>Panel de Control</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Sistema de Extensión · Universidad Distrital Francisco José de Caldas</p>
+        </div>
+        <div style={{ padding: '8px 16px', borderRadius: 8, background: 'rgba(14,165,233,0.08)', border: '1px solid rgba(14,165,233,0.2)', fontSize: 12, color: '#0EA5E9', fontWeight: 600 }}>
+          {new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((card, i) => (
-          <div
-            key={card.key}
-            className="card p-5 animate-fade-in"
-            style={{ animationDelay: `${i * 80}ms` }}
-          >
-            <div className={`w-10 h-10 rounded-xl ${card.bg} flex items-center justify-center mb-3`}>
-              <card.icon size={20} className={card.color} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+        {cards.slice(0, 4).map((card, i) => (
+          <a key={card.key} href={card.path} className={`card ${card.accent} animate-fade-in`}
+            style={{ padding: 20, textDecoration: 'none', animationDelay: `${i * 60}ms`, display: 'block' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: card.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <card.icon size={19} color={card.color} />
+              </div>
+              <ArrowUpRight size={15} style={{ color: 'var(--text-muted)' }} />
             </div>
-            <p className="text-2xl font-bold text-white">
-              {loading ? '—' : counts[card.key] ?? 0}
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5">{card.label}</p>
-          </div>
+            <p style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{loading ? '—' : counts[card.key] ?? 0}</p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 5, fontWeight: 500 }}>{card.label}</p>
+          </a>
         ))}
       </div>
-
-      {/* Info */}
-      <div className="card p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-8 h-8 rounded-lg bg-ud-red/15 flex items-center justify-center">
-            <TrendingUp size={16} className="text-ud-red" />
-          </div>
-          <h2 className="font-semibold text-white">Accesos rápidos</h2>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: 'Gestionar Tipos de Entidad', path: '/catalogs/entity-types' },
-            { label: 'Gestionar Financiaciones', path: '/catalogs/financing-types' },
-            { label: 'Gestionar Funcionarios', path: '/catalogs/ordering-officials' },
-            { label: 'Gestionar Estados', path: '/catalogs/project-statuses' },
-          ].map((item) => (
-            <a
-              key={item.path}
-              href={item.path}
-              className="flex items-center gap-2 px-4 py-3 rounded-lg bg-white/3 
-                hover:bg-white/7 border border-white/5 hover:border-white/10
-                text-sm text-gray-300 hover:text-white transition-all duration-150"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-ud-red flex-shrink-0" />
-              {item.label}
-            </a>
-          ))}
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+        {cards.slice(4).map((card, i) => (
+          <a key={card.key} href={card.path} className={`card ${card.accent} animate-fade-in`}
+            style={{ padding: 20, textDecoration: 'none', animationDelay: `${(i + 4) * 60}ms`, display: 'block' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: card.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <card.icon size={19} color={card.color} />
+              </div>
+              <ArrowUpRight size={15} style={{ color: 'var(--text-muted)' }} />
+            </div>
+            <p style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{loading ? '—' : counts[card.key] ?? 0}</p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 5, fontWeight: 500 }}>{card.label}</p>
+          </a>
+        ))}
       </div>
     </div>
   )

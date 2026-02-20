@@ -3,19 +3,14 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   theme: {
     extend: {
-      colors: {
-        ud: {
-          red: '#C8102E',
-          dark: '#1a1a2e',
-          navy: '#16213e',
-          blue: '#0f3460',
-          accent: '#e94560',
-          light: '#f8f9fa',
-        },
-      },
       fontFamily: {
-        sans: ['Sora', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
+        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'monospace'],
+      },
+      colors: {
+        crimson: { DEFAULT: '#B91C3C', light: '#E11D48', pale: '#FFF1F3' },
+        sky:     { DEFAULT: '#0EA5E9', light: '#38BDF8', pale: '#F0F9FF' },
+        navy:    { DEFAULT: '#0F2952', mid: '#1E3A6E' },
       },
     },
   },

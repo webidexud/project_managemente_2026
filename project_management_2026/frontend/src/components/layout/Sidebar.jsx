@@ -1,15 +1,6 @@
 import { NavLink } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  Building2,
-  DollarSign,
-  UserCheck,
-  Activity,
-  FolderOpen,
-  LogOut,
-  ChevronRight,
-} from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { LayoutDashboard, Globe, Building2, University, Layers, DollarSign, UserCheck, Activity, FolderOpen, ChevronRight, Sun, Moon } from 'lucide-react'
+import { useTheme } from '../../context/ThemeContext'
 
 const navItems = [
   {
@@ -22,58 +13,57 @@ const navItems = [
   {
     section: 'Catálogos',
     items: [
+      { to: '/catalogs/entities', icon: Globe, label: 'Entidades' },
       { to: '/catalogs/entity-types', icon: Building2, label: 'Tipos de Entidad' },
-      { to: '/catalogs/financing-types', icon: DollarSign, label: 'Tipos de Financiación' },
-      { to: '/catalogs/ordering-officials', icon: UserCheck, label: 'Funcionarios Ordenadores' },
-      { to: '/catalogs/project-statuses', icon: Activity, label: 'Estados de Proyecto' },
+      { to: '/catalogs/executing-departments', icon: University, label: 'Dependencias' },
+      { to: '/catalogs/execution-modalities', icon: Layers, label: 'Modalidades' },
+      { to: '/catalogs/financing-types', icon: DollarSign, label: 'Financiaciones' },
+      { to: '/catalogs/ordering-officials', icon: UserCheck, label: 'Funcionarios' },
+      { to: '/catalogs/project-statuses', icon: Activity, label: 'Estados' },
     ],
   },
 ]
 
 export default function Sidebar() {
-  const { user, logout } = useAuth()
+  const { toggle, isDark } = useTheme()
 
   return (
-    <aside className="w-64 flex-shrink-0 flex flex-col bg-ud-navy border-r border-white/5 h-screen sticky top-0">
-      {/* Logo */}
-      <div className="px-6 py-5 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-ud-red flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-black text-xs">UD</span>
+    <aside className="sidebar">
+      <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #B91C3C, #E11D48)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(185,28,60,0.4)', flexShrink: 0 }}>
+            <span style={{ color: 'white', fontWeight: 800, fontSize: 13, letterSpacing: '-0.5px' }}>UD</span>
           </div>
           <div>
-            <p className="font-bold text-white text-sm leading-tight">SIEXUD</p>
-            <p className="text-gray-500 text-[10px] leading-tight">Sistema de Extensión</p>
+            <p style={{ color: 'white', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>SIEXUD</p>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, lineHeight: 1.3, fontWeight: 500 }}>Sistema de Extensión</p>
           </div>
         </div>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+      <nav style={{ flex: 1, overflowY: 'auto', padding: '12px 10px' }}>
         {navItems.map((section) => (
-          <div key={section.section}>
-            <p className="px-3 mb-2 text-[10px] font-semibold text-gray-500 uppercase tracking-widest">
+          <div key={section.section} style={{ marginBottom: 20 }}>
+            <p style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '0 10px', marginBottom: 4 }}>
               {section.section}
             </p>
-            <ul className="space-y-0.5">
+            <ul style={{ listStyle: 'none' }}>
               {section.items.map((item) => (
                 <li key={item.to}>
-                  <NavLink
-                    to={item.to}
-                    end={item.to === '/'}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 group ${
-                        isActive
-                          ? 'bg-ud-red/15 text-ud-red font-semibold'
-                          : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-                      }`
-                    }
-                  >
+                  <NavLink to={item.to} end={item.to === '/'}
+                    style={({ isActive }) => ({
+                      display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 7,
+                      fontSize: 12.5, fontWeight: isActive ? 600 : 500,
+                      color: isActive ? 'white' : 'rgba(255,255,255,0.5)',
+                      background: isActive ? 'rgba(14,165,233,0.2)' : 'transparent',
+                      borderLeft: isActive ? '3px solid #0EA5E9' : '3px solid transparent',
+                      textDecoration: 'none', transition: 'all 0.15s ease', marginBottom: 1,
+                    })}>
                     {({ isActive }) => (
                       <>
-                        <item.icon size={16} className="flex-shrink-0" />
-                        <span className="flex-1">{item.label}</span>
-                        {isActive && <ChevronRight size={14} className="opacity-60" />}
+                        <item.icon size={14} style={{ flexShrink: 0, opacity: isActive ? 1 : 0.6 }} />
+                        <span style={{ flex: 1 }}>{item.label}</span>
+                        {isActive && <ChevronRight size={12} style={{ opacity: 0.6 }} />}
                       </>
                     )}
                   </NavLink>
@@ -84,22 +74,12 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* User */}
-      <div className="px-3 py-4 border-t border-white/5">
-        <div className="flex items-center gap-3 px-3 py-2">
-          <div className="w-8 h-8 rounded-full bg-ud-red/20 flex items-center justify-center flex-shrink-0">
-            <span className="text-ud-red text-xs font-bold">
-              {user?.username?.[0]?.toUpperCase() || 'U'}
-            </span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm text-white font-medium truncate">{user?.full_name || user?.username}</p>
-            <p className="text-xs text-gray-500 truncate">{user?.is_admin ? 'Administrador' : 'Usuario'}</p>
-          </div>
-          <button onClick={logout} className="btn-ghost text-gray-500 hover:text-ud-red" title="Cerrar sesión">
-            <LogOut size={16} />
-          </button>
+      <div style={{ padding: '14px 20px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {isDark ? <Moon size={14} style={{ color: '#38BDF8' }} /> : <Sun size={14} style={{ color: '#FCD34D' }} />}
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>{isDark ? 'Oscuro' : 'Claro'}</span>
         </div>
+        <button onClick={toggle} className={`theme-toggle ${isDark ? 'active' : ''}`} title="Cambiar tema" />
       </div>
     </aside>
   )

@@ -4,6 +4,7 @@ import { ThemeProvider } from './context/ThemeContext'
 import AppLayout from './components/layout/AppLayout'
 import DashboardPage from './pages/DashboardPage'
 import ProjectsPage from './pages/ProjectsPage'
+import ProjectFormPage from './pages/projects/ProjectFormPage'
 import EntitiesPage from './pages/catalogs/EntitiesPage'
 import EntityTypesPage from './pages/catalogs/EntityTypesPage'
 import ExecutingDepartmentsPage from './pages/catalogs/ExecutingDepartmentsPage'
@@ -16,24 +17,39 @@ export default function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
-        <Toaster position="top-right" toastOptions={{
-          style: { background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', fontSize: '13px', fontFamily: '"Plus Jakarta Sans", sans-serif', boxShadow: 'var(--shadow-lg)' },
-          success: { iconTheme: { primary: '#10B981', secondary: 'white' } },
-          error: { iconTheme: { primary: '#B91C3C', secondary: 'white' } },
-        }} />
+        {/* z-index 999999 — siempre por encima de modales (9999) */}
+        <Toaster
+          position="top-right"
+          containerStyle={{ zIndex: 999999 }}
+          toastOptions={{
+            duration: 3500,
+            style: {
+              fontFamily: 'Plus Jakarta Sans, sans-serif',
+              fontSize: 13,
+              fontWeight: 500,
+              borderRadius: 10,
+              boxShadow: '0 8px 30px rgba(0,0,0,0.18)',
+            },
+            success: { iconTheme: { primary: '#10B981', secondary: '#fff' } },
+            error:   { iconTheme: { primary: '#B91C3C', secondary: '#fff' } },
+          }}
+        />
         <Routes>
-          <Route path="/" element={<AppLayout />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="projects" element={<ProjectsPage />} />
-            <Route path="catalogs/entities" element={<EntitiesPage />} />
-            <Route path="catalogs/entity-types" element={<EntityTypesPage />} />
-            <Route path="catalogs/executing-departments" element={<ExecutingDepartmentsPage />} />
-            <Route path="catalogs/execution-modalities" element={<ExecutionModalitiesPage />} />
-            <Route path="catalogs/financing-types" element={<FinancingTypesPage />} />
-            <Route path="catalogs/ordering-officials" element={<OrderingOfficialsPage />} />
-            <Route path="catalogs/project-statuses" element={<ProjectStatusesPage />} />
+          <Route path="/projects/new"       element={<ProjectFormPage/>}/>
+          <Route path="/projects/:id/edit"  element={<ProjectFormPage/>}/>
+
+          <Route element={<AppLayout/>}>
+            <Route path="/"                                       element={<Navigate to="/dashboard" replace/>}/>
+            <Route path="/dashboard"                              element={<DashboardPage/>}/>
+            <Route path="/projects"                               element={<ProjectsPage/>}/>
+            <Route path="/catalogs/entities"                      element={<EntitiesPage/>}/>
+            <Route path="/catalogs/entity-types"                  element={<EntityTypesPage/>}/>
+            <Route path="/catalogs/executing-departments"         element={<ExecutingDepartmentsPage/>}/>
+            <Route path="/catalogs/execution-modalities"          element={<ExecutionModalitiesPage/>}/>
+            <Route path="/catalogs/financing-types"               element={<FinancingTypesPage/>}/>
+            <Route path="/catalogs/ordering-officials"            element={<OrderingOfficialsPage/>}/>
+            <Route path="/catalogs/project-statuses"              element={<ProjectStatusesPage/>}/>
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>

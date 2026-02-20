@@ -1,0 +1,806 @@
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import {
+  FileText, Settings, DollarSign, Calendar, Users,
+  Tag, Link2, Save, ArrowLeft, CheckCircle2, AlertCircle
+} from 'lucide-react'
+import toast from 'react-hot-toast'
+import { projectsService, rupService } from '../../services/projects'
+import {
+  entitiesService, executingDepartmentsService, projectStatusesService,
+  executionModalitiesService, financingTypesService, orderingOfficialsService
+} from '../../services/catalogs'
+import SearchableSelect from '../../components/ui/SearchableSelect'
+import RupSelector from '../../components/projects/RupSelector'
+
+/* ─── Límites de caracteres según BD ─────────────────────────────── */
+const LIMITS = {
+  external_project_number:  20,
+  project_name:             800,
+  project_purpose:          2000,   // text — límite razonable UI
+  accounting_code:          50,
+  main_email:               200,
+  administrative_act:       50,
+  secop_link:               1000,
+  observations:             4000,   // text
+  rup_codes_general_observations: 4000,  // text
+  minutes_number:           50,
+  session_type:             50,
+}
+
+/* ─── Componente contador de caracteres ──────────────────────────── */
+function CharCount({ value, max }) {
+  const len  = (value || '').length
+  const pct  = len / max
+  const color = pct >= 1 ? '#B91C3C' : pct >= 0.85 ? '#F59E0B' : 'var(--text-muted)'
+  return (
+    <span style={{ fontSize: 11, color, fontVariantNumeric: 'tabular-nums', transition: 'color .2s' }}>
+      {len}/{max}
+    </span>
+  )
+}
+
+/* ─── Input con contador ─────────────────────────────────────────── */
+function TxtInp({ value, onChange, max, placeholder, type = 'text', disabled, style }) {
+  return (
+    <div>
+      <input className="input-field" type={type} value={value ?? ''} maxLength={max}
+        onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        disabled={disabled} style={style} />
+      {max && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 3 }}>
+          <CharCount value={value} max={max} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─── Textarea con contador ──────────────────────────────────────── */
+function TxtArea({ value, onChange, max, rows = 3, placeholder }) {
+  return (
+    <div>
+      <textarea className="input-field" rows={rows} value={value ?? ''} maxLength={max}
+        onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        style={{ resize: 'vertical' }} />
+      {max && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 3 }}>
+          <CharCount value={value} max={max} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─── Input numérico con formato miles ───────────────────────────── */
+const fmtNum = (v) => {
+  if (v === '' || v === null || v === undefined) return ''
+  const num = parseFloat(String(v).replace(/\./g, '').replace(',', '.'))
+  if (isNaN(num)) return ''
+  return num.toLocaleString('es-CO', { maximumFractionDigits: 2 })
+}
+const parseNum = (v) => {
+  if (v === '' || v === null || v === undefined) return 0
+  return parseFloat(String(v).replace(/\./g, '').replace(',', '.')) || 0
+}
+
+function MoneyInput({ value, onChange, placeholder, readOnly }) {
+  const [display, setDisplay] = useState(fmtNum(value))
+  useEffect(() => { setDisplay(fmtNum(value)) }, [value])
+  const handleChange = (e) => {
+    const raw = e.target.value.replace(/\./g, '').replace(/[^0-9,]/g, '')
+    setDisplay(raw)
+    onChange(parseFloat(raw.replace(',', '.')) || 0)
+  }
+  return (
+    <input className="input-field" value={display}
+      onChange={readOnly ? undefined : handleChange}
+      onBlur={() => setDisplay(fmtNum(value))}
+      onFocus={() => setDisplay(value !== '' && value !== null ? String(value).replace(/\./g, '') : '')}
+      placeholder={placeholder} readOnly={readOnly}
+      style={{ fontFamily: 'monospace', opacity: readOnly ? 0.7 : 1 }} />
+  )
+}
+
+/* ─── Secciones (RUP antes de Adicional) ─────────────────────────── */
+const SECTIONS = [
+  { id: 'identificacion', label: 'Identificación',  icon: FileText,   required: ['project_name','project_purpose','project_year'] },
+  { id: 'clasificacion',  label: 'Clasificación',   icon: Settings,   required: ['project_status_id','project_type_id','financing_type_id','execution_modality_id'] },
+  { id: 'financiero',     label: 'Financiero',      icon: DollarSign, required: ['project_value'] },
+  { id: 'fechas',         label: 'Fechas',          icon: Calendar,   required: ['start_date','end_date'] },
+  { id: 'actores',        label: 'Actores',         icon: Users,      required: ['entity_id','executing_department_id','ordering_official_id'] },
+  { id: 'rup',            label: 'Códigos RUP',     icon: Tag,        required: [] },
+  { id: 'adicional',      label: 'Adicional',       icon: Link2,      required: [] },
+]
+
+const SESSION_TYPES = ['ORDINARIA', 'EXTRAORDINARIA']
+const CURRENT_YEAR  = new Date().getFullYear()
+
+const EMPTY = {
+  project_year: CURRENT_YEAR,
+  external_project_number: '', project_name: '', project_purpose: '',
+  entity_id: '', executing_department_id: '', project_status_id: '',
+  project_type_id: '', financing_type_id: '', execution_modality_id: '',
+  project_value: '', accounting_code: '',
+  institutional_benefit_percentage: 12, institutional_benefit_value: '',
+  university_contribution: 0, entity_contribution: '',
+  beneficiaries_count: '', subscription_date: '', start_date: '', end_date: '',
+  ordering_official_id: '', main_email: '',
+  administrative_act: '', secop_link: '', observations: '',
+  rup_codes_general_observations: '', session_type: '', minutes_date: '', minutes_number: '',
+}
+
+/* ─── Página ──────────────────────────────────────────────────────── */
+export default function ProjectFormPage() {
+  const navigate = useNavigate()
+  const { id }   = useParams()
+  const isEdit   = Boolean(id)
+
+  const [section,  setSection]  = useState('identificacion')
+  const [saving,   setSaving]   = useState(false)
+  const [loading,  setLoading]  = useState(isEdit)
+  const [form,     setForm]     = useState(EMPTY)
+  const [rupCodes, setRupCodes] = useState([])
+  const [nextNum,  setNextNum]  = useState(null)  // próximo número interno
+  const [cats,     setCats]     = useState({
+    entities:[], departments:[], statuses:[], modalities:[], financing:[], officials:[], projTypes:[]
+  })
+
+  // Cargar catálogos activos
+  useEffect(() => {
+    Promise.all([
+      entitiesService.list(true), executingDepartmentsService.list(true),
+      projectStatusesService.list(true), executionModalitiesService.list(true),
+      financingTypesService.list(true), orderingOfficialsService.list(true),
+      projectsService.listTypes(),
+    ]).then(([en,dep,st,mod,fin,off,pt]) => setCats({
+      entities: en.data, departments: dep.data, statuses: st.data,
+      modalities: mod.data, financing: fin.data, officials: off.data, projTypes: pt.data,
+    })).catch(() => toast.error('Error cargando catálogos'))
+  }, [])
+
+  // Cargar siguiente número disponible (solo creación)
+  useEffect(() => {
+    if (isEdit) return
+    projectsService.getNextNumber(form.project_year)
+      .then(r => setNextNum(r.data.next_number))
+      .catch(() => {})
+  }, [form.project_year, isEdit])
+
+  // Cargar proyecto si es edición
+  useEffect(() => {
+    if (!isEdit) return
+    Promise.all([projectsService.get(id), rupService.getProjectRup(id)])
+      .then(([pr, rr]) => {
+        const p = pr.data
+        setForm({
+          project_year: p.project_year,
+          external_project_number: p.external_project_number || '',
+          project_name: p.project_name, project_purpose: p.project_purpose,
+          entity_id: p.entity_id, executing_department_id: p.executing_department_id,
+          project_status_id: p.project_status_id, project_type_id: p.project_type_id,
+          financing_type_id: p.financing_type_id, execution_modality_id: p.execution_modality_id,
+          project_value: p.project_value, accounting_code: p.accounting_code || '',
+          institutional_benefit_percentage: p.institutional_benefit_percentage ?? 12,
+          institutional_benefit_value: p.institutional_benefit_value || '',
+          university_contribution: p.university_contribution || 0,
+          entity_contribution: p.entity_contribution || '',
+          beneficiaries_count: p.beneficiaries_count || '',
+          subscription_date: p.subscription_date || '', start_date: p.start_date, end_date: p.end_date,
+          ordering_official_id: p.ordering_official_id, main_email: p.main_email || '',
+          administrative_act: p.administrative_act || '', secop_link: p.secop_link || '',
+          observations: p.observations || '',
+          rup_codes_general_observations: p.rup_codes_general_observations || '',
+          session_type: p.session_type || '', minutes_date: p.minutes_date || '',
+          minutes_number: p.minutes_number || '',
+        })
+        setRupCodes(rr.data.map(r => ({
+          rup_code_id: r.rup_code_id, rup_code: r.rup_code,
+          product_name: r.product_name, class_name: r.class_name,
+          family_name: r.family_name, segment_name: r.segment_name,
+          is_main_code: r.is_main_code,
+        })))
+        setLoading(false)
+      })
+      .catch(() => { toast.error('Error cargando proyecto'); navigate('/projects') })
+  }, [id, isEdit, navigate])
+
+  const set = useCallback((k, v) => setForm(f => ({ ...f, [k]: v })), [])
+
+  // Auto: aporte entidad = total - univ
+  useEffect(() => {
+    const total = parseNum(form.project_value)
+    const univ  = parseNum(form.university_contribution)
+    setForm(f => ({ ...f, entity_contribution: Math.max(0, total - univ) || '' }))
+  }, [form.project_value, form.university_contribution])
+
+  // El beneficio institucional se calcula en SecFinanciero con la fórmula:
+  // ((aporte_entidad + adiciones) * 12%) / 112%
+
+  const secStatus = SECTIONS.map(s => ({
+    ...s, complete: s.required.every(k => form[k] || form[k] === 0),
+  }))
+  const completedCount = secStatus.filter(s => s.complete).length
+
+  // Validación con foco automático en sección con error
+  const validate = () => {
+    const checks = [
+      ['identificacion', 'project_name',            'Nombre del proyecto'],
+      ['identificacion', 'project_purpose',          'Objeto del proyecto'],
+      ['clasificacion',  'project_status_id',        'Estado'],
+      ['clasificacion',  'project_type_id',          'Tipo de proyecto'],
+      ['clasificacion',  'financing_type_id',        'Tipo de financiación'],
+      ['clasificacion',  'execution_modality_id',    'Modalidad de ejecución'],
+      ['financiero',     'project_value',            'Valor del proyecto'],
+      ['fechas',         'start_date',               'Fecha de inicio'],
+      ['fechas',         'end_date',                 'Fecha de fin'],
+      ['actores',        'entity_id',                'Entidad'],
+      ['actores',        'executing_department_id',  'Dependencia ejecutora'],
+      ['actores',        'ordering_official_id',     'Funcionario ordenador'],
+    ]
+    for (const [sec, k, label] of checks) {
+      if (!form[k] && form[k] !== 0) {
+        toast.error(`Campo requerido: ${label}`)
+        setSection(sec); return false
+      }
+    }
+    if (parseNum(form.project_value) <= 0) {
+      toast.error('El valor del proyecto debe ser mayor a 0')
+      setSection('financiero'); return false
+    }
+    // Validaciones de fechas
+    if (form.subscription_date && form.start_date && form.start_date < form.subscription_date) {
+      toast.error('La fecha de inicio no puede ser anterior a la fecha de suscripción')
+      setSection('fechas'); return false
+    }
+    if (form.start_date && form.end_date && form.end_date <= form.start_date) {
+      toast.error('La fecha de fin debe ser posterior a la fecha de inicio')
+      setSection('fechas'); return false
+    }
+    return true
+  }
+
+  const handleSave = async () => {
+    if (!validate()) return
+    setSaving(true)
+    try {
+      const numF = ['entity_id','executing_department_id','project_status_id','project_type_id',
+        'financing_type_id','execution_modality_id','ordering_official_id','project_year','beneficiaries_count']
+      const decF = ['project_value','institutional_benefit_percentage',
+        'institutional_benefit_value','university_contribution','entity_contribution']
+
+      const payload = {}
+      for (const [k, v] of Object.entries(form)) {
+        // No enviar internal_project_number — lo genera el backend
+        if (k === 'internal_project_number') continue
+        if (v === '' || v === null || v === undefined) { payload[k] = null; continue }
+        if (numF.includes(k))      payload[k] = Number(v)
+        else if (decF.includes(k)) payload[k] = parseNum(v)
+        else                       payload[k] = v
+      }
+
+      let projId
+      if (isEdit) {
+        await projectsService.update(id, payload)
+        projId = Number(id)
+      } else {
+        const r = await projectsService.create(payload)
+        projId = r.data.project_id
+      }
+
+      if (rupCodes.length > 0) {
+        await rupService.assignRup(projId, rupCodes.map(c => ({
+          rup_code_id: c.rup_code_id, is_main_code: c.is_main_code,
+        })))
+      }
+
+      toast.success(isEdit ? 'Proyecto actualizado ✓' : 'Proyecto creado ✓')
+      navigate('/projects')
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al guardar')
+    } finally { setSaving(false) }
+  }
+
+  const curIdx  = SECTIONS.findIndex(s => s.id === section)
+  const hasPrev = curIdx > 0
+  const hasNext = curIdx < SECTIONS.length - 1
+
+  if (loading) return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:300 }}>
+      <p style={{ color:'var(--text-muted)', fontSize:14 }}>Cargando proyecto...</p>
+    </div>
+  )
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden' }}>
+
+      {/* ── Topbar ── */}
+      <div style={{ background:'var(--bg-card)', borderBottom:'1px solid var(--border-color)', flexShrink:0 }}>
+        {/* Fila 1: título + botón */}
+        <div style={{ padding:'10px 24px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <button onClick={()=>navigate('/projects')} style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'1px solid var(--border-color)', cursor:'pointer', color:'var(--text-secondary)', fontSize:13, fontFamily:'inherit', padding:'7px 12px', borderRadius:8, whiteSpace:'nowrap' }}>
+              <ArrowLeft size={15}/> Volver
+            </button>
+            <div style={{ width:1, height:24, background:'var(--border-color)' }}/>
+            <div>
+              <h1 style={{ fontSize:15, fontWeight:800, color:'var(--text-primary)', margin:0 }}>
+                {isEdit
+                  ? `Editando · ${form.project_year} #${form.internal_project_number || ''}`
+                  : `Nuevo proyecto · ${form.project_year}${nextNum ? ` (será #${nextNum})` : ''}`}
+              </h1>
+              <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>
+                {completedCount} de {SECTIONS.length} pasos completados
+              </p>
+            </div>
+          </div>
+          <button onClick={handleSave} disabled={saving} className="btn-primary" style={{ minWidth:170 }}>
+            <Save size={14}/>
+            {saving?'Guardando...': isEdit?'Guardar cambios':'Crear proyecto'}
+          </button>
+        </div>
+
+        {/* Stepper ejecutivo */}
+        <div style={{ display:'flex', alignItems:'stretch', padding:'0 16px', overflowX:'auto' }}>
+          {secStatus.map((s, i) => {
+            const active  = section === s.id
+            const done    = s.complete
+            return (
+              <div key={s.id} style={{ display:'flex', alignItems:'center', flex: i < secStatus.length-1 ? '1 1 0' : 'none', minWidth:0 }}>
+                <button onClick={()=>setSection(s.id)} style={{
+                  display:'flex', flexDirection:'column', alignItems:'center', gap:3,
+                  padding:'8px 10px 11px', border:'none', background:'none', cursor:'pointer',
+                  fontFamily:'inherit', flexShrink:0, position:'relative',
+                }}>
+                  <div style={{
+                    width:30, height:30, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
+                    fontWeight:800, fontSize:11, transition:'all .2s',
+                    background: done ? '#10B981' : active ? '#0F2952' : 'var(--bg-hover)',
+                    color:      done ? '#fff'    : active ? '#fff'    : 'var(--text-muted)',
+                    boxShadow:  active && !done ? '0 0 0 3px rgba(14,165,233,0.2)' : 'none',
+                    border:     active && !done ? '2px solid #0EA5E9' : '2px solid transparent',
+                  }}>
+                    {done ? <CheckCircle2 size={14} color="#fff"/> : <span>{String(i+1).padStart(2,'0')}</span>}
+                  </div>
+                  <span style={{
+                    fontSize:10, fontWeight: active ? 700 : 500, whiteSpace:'nowrap',
+                    color: done ? '#10B981' : active ? '#0EA5E9' : 'var(--text-muted)',
+                  }}>
+                    {s.label}
+                  </span>
+                  {active && (
+                    <div style={{ position:'absolute', bottom:0, left:'50%', transform:'translateX(-50%)', width:28, height:3, borderRadius:'3px 3px 0 0', background:'#0EA5E9' }}/>
+                  )}
+                </button>
+                {i < secStatus.length-1 && (
+                  <div style={{ flex:1, height:2, borderRadius:2, margin:'0 2px', marginBottom:18,
+                    background: done && secStatus[i+1].complete ? '#10B981' : done ? 'linear-gradient(to right,#10B981,var(--border-color))' : 'var(--border-color)'
+                  }}/>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── Cuerpo ── */}
+      <div style={{ display:'flex', flex:1, overflow:'hidden', minHeight:0 }}>
+        {/* Sidebar */}
+        <div style={{ width:210, borderRight:'1px solid var(--border-color)', background:'var(--bg-secondary)', flexShrink:0, display:'flex', flexDirection:'column', padding:'12px 8px' }}>
+          {secStatus.map(s=>{
+            const active = section===s.id
+            return (
+              <button key={s.id} onClick={()=>setSection(s.id)} style={{
+                width:'100%', display:'flex', alignItems:'center', gap:9,
+                padding:'10px 12px', borderRadius:8, border:'none', marginBottom:2,
+                borderLeft:`3px solid ${active?'#0EA5E9':'transparent'}`,
+                background: active?'rgba(14,165,233,0.1)':'transparent',
+                color: active?'#0EA5E9':'var(--text-muted)',
+                cursor:'pointer', fontSize:13, fontWeight:active?700:500,
+                fontFamily:'inherit', transition:'all .15s', textAlign:'left',
+              }}>
+                <s.icon size={15} style={{ flexShrink:0 }}/>
+                <span style={{ flex:1 }}>{s.label}</span>
+                {s.complete
+                  ? <CheckCircle2 size={14} color="#10B981"/>
+                  : s.required.length>0 ? <AlertCircle size={13} style={{ opacity:.3 }}/> : null}
+              </button>
+            )
+          })}
+          <div style={{ marginTop:'auto', padding:'16px 8px 4px' }}>
+            <div style={{ height:6, background:'var(--border-color)', borderRadius:3, overflow:'hidden' }}>
+              <div style={{ height:'100%', borderRadius:3, background:'#10B981', transition:'width .4s', width:`${(completedCount/SECTIONS.length)*100}%` }}/>
+            </div>
+            <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:6, textAlign:'center' }}>
+              {Math.round((completedCount/SECTIONS.length)*100)}% completado
+            </p>
+          </div>
+        </div>
+
+        {/* Contenido scrolleable */}
+        <div style={{ flex:1, overflowY:'auto', background:'var(--bg-primary)' }}>
+          <div style={{ maxWidth:780, margin:'0 auto', padding:36 }}>
+            {section==='identificacion' && <SecIdentificacion form={form} set={set} />}
+            {section==='clasificacion'  && <SecClasificacion  form={form} set={set} cats={cats} />}
+            {section==='financiero'     && <SecFinanciero form={form} set={set} projectId={id} isEdit={isEdit}/>}
+            {section==='fechas'         && <SecFechas         form={form} set={set} />}
+            {section==='actores'        && <SecActores        form={form} set={set} cats={cats} />}
+            {section==='rup'            && <SecRup            rupCodes={rupCodes} onChange={setRupCodes} form={form} set={set} />}
+            {section==='adicional'      && <SecAdicional      form={form} set={set} />}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Nav inferior ── */}
+      <div style={{ borderTop:'1px solid var(--border-color)', background:'var(--bg-card)', padding:'12px 28px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+        <button onClick={()=>hasPrev&&setSection(SECTIONS[curIdx-1].id)} disabled={!hasPrev}
+          className="btn-secondary" style={{ opacity:hasPrev?1:0.3, minWidth:130 }}>
+          ← {hasPrev?SECTIONS[curIdx-1].label:'Anterior'}
+        </button>
+        <span style={{ fontSize:12, color:'var(--text-muted)' }}>
+          {curIdx+1} / {SECTIONS.length} · <strong style={{ color:'var(--text-secondary)' }}>{SECTIONS[curIdx].label}</strong>
+        </span>
+        <button onClick={()=>hasNext&&setSection(SECTIONS[curIdx+1].id)} disabled={!hasNext}
+          className="btn-secondary" style={{ opacity:hasNext?1:0.3, minWidth:130 }}>
+          {hasNext?SECTIONS[curIdx+1].label:'Finalizar'} →
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Helpers UI ─────────────────────────────────────────────────── */
+function ST({ icon:Icon, color='#0EA5E9', title, subtitle }) {
+  return (
+    <div style={{ marginBottom:28 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+        <div style={{ width:40, height:40, borderRadius:10, background:`${color}15`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+          <Icon size={20} color={color}/>
+        </div>
+        <div>
+          <h2 style={{ fontSize:18, fontWeight:800, color:'var(--text-primary)', margin:0 }}>{title}</h2>
+          {subtitle&&<p style={{ fontSize:12, color:'var(--text-muted)', marginTop:3 }}>{subtitle}</p>}
+        </div>
+      </div>
+      <div style={{ height:1, background:'var(--border-color)', marginTop:18 }}/>
+    </div>
+  )
+}
+function G({ cols=2, children }) {
+  return <div style={{ display:'grid', gridTemplateColumns:`repeat(${cols},1fr)`, gap:16, marginBottom:16 }}>{children}</div>
+}
+function F({ label, required, span, hint, children }) {
+  return (
+    <div style={span?{gridColumn:`span ${span}`}:{}}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:6 }}>
+        <label style={{ fontSize:12, fontWeight:600, color:'var(--text-secondary)' }}>
+          {label}{required&&<span style={{ color:'#B91C3C' }}> *</span>}
+        </label>
+      </div>
+      {children}
+      {hint&&<p style={{ fontSize:11, color:'var(--text-muted)', marginTop:4 }}>{hint}</p>}
+    </div>
+  )
+}
+const Sel = ({value,onChange,children}) => (
+  <select className="input-field" value={value??''} onChange={e=>onChange(e.target.value)}>{children}</select>
+)
+
+/* ─── Sección 1: Identificación ─────────────────────────────────── */
+function SecIdentificacion({ form, set }) {
+  return <>
+    <ST icon={FileText} title="Identificación del proyecto"
+      subtitle="El número interno se asigna automáticamente al guardar"/>
+    <G cols={2}>
+      <F label="Año del proyecto" required>
+        <input className="input-field" type="number" value={form.project_year} onChange={e=>set('project_year',e.target.value)} min={2020} max={2100}/>
+      </F>
+      <F label="N° externo" hint={`Máx. ${LIMITS.external_project_number} caracteres`}>
+        <TxtInp value={form.external_project_number} onChange={v=>set('external_project_number',v)}
+          max={LIMITS.external_project_number} placeholder="Ej: CONV-001"/>
+      </F>
+    </G>
+    <G cols={1}>
+      <F label="Nombre completo del proyecto" required>
+        <TxtInp value={form.project_name} onChange={v=>set('project_name',v)}
+          max={LIMITS.project_name} placeholder="Nombre descriptivo del proyecto de extensión"/>
+      </F>
+      <F label="Objeto del proyecto" required hint="Propósito y alcance principal del proyecto">
+        <TxtArea rows={5} value={form.project_purpose} onChange={v=>set('project_purpose',v)}
+          max={LIMITS.project_purpose} placeholder="Descripción del objeto o propósito principal..."/>
+      </F>
+    </G>
+  </>
+}
+
+/* ─── Sección 2: Clasificación ───────────────────────────────────── */
+function SecClasificacion({ form, set, cats }) {
+  return <>
+    <ST icon={Settings} color="#8B5CF6" title="Clasificación"
+      subtitle="Categorías y modalidades que clasifican el proyecto"/>
+    <G cols={2}>
+      <F label="Estado" required>
+        <Sel value={form.project_status_id} onChange={v=>set('project_status_id',v)}>
+          <option value="">— Seleccionar —</option>
+          {cats.statuses.map(s=><option key={s.status_id} value={s.status_id}>{s.status_name}</option>)}
+        </Sel>
+      </F>
+      <F label="Tipo de proyecto" required>
+        <Sel value={form.project_type_id} onChange={v=>set('project_type_id',v)}>
+          <option value="">— Seleccionar —</option>
+          {cats.projTypes.map(t=><option key={t.project_type_id} value={t.project_type_id}>{t.type_name}</option>)}
+        </Sel>
+      </F>
+      <F label="Tipo de financiación" required>
+        <Sel value={form.financing_type_id} onChange={v=>set('financing_type_id',v)}>
+          <option value="">— Seleccionar —</option>
+          {cats.financing.map(f=><option key={f.financing_type_id} value={f.financing_type_id}>{f.financing_name}</option>)}
+        </Sel>
+      </F>
+      <F label="Modalidad de ejecución" required>
+        <Sel value={form.execution_modality_id} onChange={v=>set('execution_modality_id',v)}>
+          <option value="">— Seleccionar —</option>
+          {cats.modalities.map(m=><option key={m.execution_modality_id} value={m.execution_modality_id}>{m.modality_name}</option>)}
+        </Sel>
+      </F>
+    </G>
+  </>
+}
+
+/* ─── Sección 3: Financiero ──────────────────────────────────────── */
+function SecFinanciero({ form, set, projectId, isEdit }) {
+  const [totalAdditions, setTotalAdditions] = useState(0)
+  const [suggested, setSuggested] = useState(null)  // valor sugerido por fórmula
+
+  // Cargar adiciones reales del proyecto (modificaciones tipo ADICION)
+  useEffect(() => {
+    if (!isEdit || !projectId) return
+    projectsService.getAdditions(projectId)
+      .then(r => setTotalAdditions(parseNum(r.data.total_additions)))
+      .catch(() => {})
+  }, [isEdit, projectId])
+
+  const total = parseNum(form.project_value)
+  const univ  = parseNum(form.university_contribution)
+  const ent   = parseNum(form.entity_contribution)   // automático: total - univ
+
+  // Calcular sugerencia: ((aporte_entidad + adiciones) * 12%) / 112%
+  useEffect(() => {
+    if (ent > 0) {
+      const val = ((ent + totalAdditions) * 0.12) / 1.12
+      setSuggested(val)
+    } else {
+      setSuggested(null)
+    }
+  }, [ent, totalAdditions])
+
+  const benVal = parseNum(form.institutional_benefit_value)
+  const benPct = total > 0 && benVal > 0 ? ((benVal / total) * 100).toFixed(2) : '0.00'
+
+  const applySuggested = () => {
+    if (suggested !== null) set('institutional_benefit_value', suggested.toFixed(2))
+  }
+
+  return <>
+    <ST icon={DollarSign} color="#10B981" title="Información financiera"
+      subtitle="Valores en pesos colombianos (COP)"/>
+    <G cols={2}>
+      <F label="Valor total del proyecto (COP)" required>
+        <MoneyInput value={form.project_value} onChange={v=>set('project_value',v)} placeholder="0"/>
+      </F>
+      <F label="Código contable">
+        <TxtInp value={form.accounting_code} onChange={v=>set('accounting_code',v)}
+          max={LIMITS.accounting_code} placeholder="Ej: 4-1-01-001"/>
+      </F>
+      <F label="Aporte Universidad (COP)">
+        <MoneyInput value={form.university_contribution} onChange={v=>set('university_contribution',v)} placeholder="0"/>
+      </F>
+      <F label="Aporte Entidad (COP)" hint="Automático: Valor total − Aporte Universidad">
+        <MoneyInput value={form.entity_contribution} onChange={()=>{}} readOnly/>
+      </F>
+    </G>
+
+    {/* Beneficio institucional — editable, con sugerencia discreta */}
+    <div style={{ background:'var(--bg-hover)', border:'1px solid var(--border-color)', borderRadius:'var(--radius-lg)', padding:'16px 18px', marginBottom:16 }}>
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16, flexWrap:'wrap' }}>
+        <div style={{ flex:'1 1 220px', minWidth:0 }}>
+          <label style={{ display:'block', fontSize:'var(--font-xs)', fontWeight:700, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>
+            Beneficio institucional (COP)
+          </label>
+          <MoneyInput value={form.institutional_benefit_value} onChange={v=>set('institutional_benefit_value',v)} placeholder="Ingrese el valor"/>
+          {/* Sugerencia discreta */}
+          {suggested !== null && Math.abs(suggested - benVal) > 1 && (
+            <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+              <span style={{ fontSize:11, color:'var(--text-muted)' }}>
+                Sugerido por fórmula: <strong style={{ color:'#10B981', fontFamily:'monospace' }}>${fmtNum(suggested.toFixed(0))}</strong>
+              </span>
+              <button onClick={applySuggested} style={{
+                fontSize:11, fontWeight:700, color:'#0EA5E9', background:'rgba(14,165,233,0.08)',
+                border:'1px solid rgba(14,165,233,0.25)', borderRadius:6, padding:'2px 8px',
+                cursor:'pointer', fontFamily:'inherit',
+              }}>
+                Aplicar
+              </button>
+            </div>
+          )}
+        </div>
+        <div style={{ flex:'0 0 120px', textAlign:'center' }}>
+          <label style={{ display:'block', fontSize:'var(--font-xs)', fontWeight:700, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>
+            % sobre total
+          </label>
+          <div style={{ padding:'10px 8px', borderRadius:'var(--radius-md)', background:'var(--bg-card)', border:'1px solid var(--border-color)', fontFamily:'monospace', fontSize:18, fontWeight:800, color:'#10B981', textAlign:'center' }}>
+            {benPct}%
+          </div>
+        </div>
+      </div>
+      {isEdit && totalAdditions > 0 && (
+        <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:10 }}>
+          Adiciones activas: <strong style={{ color:'var(--text-secondary)', fontFamily:'monospace' }}>${fmtNum(totalAdditions)}</strong> · incluidas en el cálculo sugerido
+        </p>
+      )}
+    </div>
+
+    <G cols={1}>
+      <F label="N° beneficiarios">
+        <input className="input-field" type="number" value={form.beneficiaries_count??''} onChange={e=>set('beneficiaries_count',e.target.value)} min={0} placeholder="0" style={{ maxWidth:200 }}/>
+      </F>
+    </G>
+
+    {total > 0 && (
+      <div style={{ background:'var(--bg-card)', border:'1px solid var(--border-color)', borderRadius:'var(--radius-lg)', padding:20, marginTop:4 }}>
+        <p style={{ fontSize:'var(--font-xs)', fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:14 }}>Resumen financiero</p>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
+          {[
+            ['Valor total',        total,   '#0F2952'],
+            ['Beneficio UD',       benVal,  '#0EA5E9'],
+            ['Aporte Universidad', univ,    '#10B981'],
+            ['Aporte Entidad',     ent,     '#F59E0B'],
+          ].map(([label, num, color]) => (
+            <div key={label} style={{ textAlign:'center', padding:'12px 8px', borderRadius:'var(--radius-md)', background:`${color}08`, border:`1px solid ${color}22` }}>
+              <p style={{ fontSize:'var(--font-xs)', color:'var(--text-muted)', marginBottom:5 }}>{label}</p>
+              <p style={{ fontSize:'var(--font-sm)', fontWeight:800, color, fontFamily:'monospace' }}>${fmtNum(num)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </>
+}
+
+/* ─── Sección 4: Fechas ──────────────────────────────────────────── */
+function SecFechas({ form, set }) {
+  const days = form.start_date && form.end_date && form.end_date > form.start_date
+    ? Math.round((new Date(form.end_date)-new Date(form.start_date))/86400000) : null
+
+  // Validación visual inline de fechas
+  const startErr = form.subscription_date && form.start_date && form.start_date < form.subscription_date
+  const endErr   = form.start_date && form.end_date && form.end_date <= form.start_date
+
+  return <>
+    <ST icon={Calendar} color="#F59E0B" title="Fechas y cronograma"
+      subtitle="La fecha de inicio no puede ser anterior a la suscripción · La fecha de fin debe ser posterior al inicio"/>
+    <p style={{ fontSize:13, fontWeight:700, color:'var(--text-secondary)', marginBottom:12 }}>Cronograma de ejecución</p>
+    <G cols={3}>
+      <F label="Fecha de suscripción" hint="Fecha de firma del convenio">
+        <input className="input-field" type="date" value={form.subscription_date||''} onChange={e=>set('subscription_date',e.target.value)}/>
+      </F>
+      <F label="Fecha de inicio" required>
+        <div>
+          <input className="input-field" type="date" value={form.start_date||''} onChange={e=>set('start_date',e.target.value)}
+            min={form.subscription_date||''}
+            style={{ borderColor: startErr?'#B91C3C':undefined }}/>
+          {startErr && <p style={{ fontSize:11, color:'#B91C3C', marginTop:4 }}>⚠ No puede ser anterior a la suscripción</p>}
+        </div>
+      </F>
+      <F label="Fecha de fin" required>
+        <div>
+          <input className="input-field" type="date" value={form.end_date||''} onChange={e=>set('end_date',e.target.value)}
+            min={form.start_date||''}
+            style={{ borderColor: endErr?'#B91C3C':undefined }}/>
+          {endErr && <p style={{ fontSize:11, color:'#B91C3C', marginTop:4 }}>⚠ Debe ser posterior a la fecha de inicio</p>}
+        </div>
+      </F>
+    </G>
+    {days !== null && (
+      <div style={{ display:'flex', gap:10, marginBottom:24 }}>
+        {[[`${days} días`,'Duración total','#0EA5E9'],[`≈ ${Math.round(days/30)} meses`,'Aproximados','#10B981'],[`${(days/365).toFixed(1)} años`,'En años','#8B5CF6']].map(([val,label,color])=>(
+          <div key={label} style={{ flex:1, textAlign:'center', padding:'14px 8px', borderRadius:10, background:`${color}08`, border:`1px solid ${color}22` }}>
+            <p style={{ fontSize:20, fontWeight:800, color, fontFamily:'monospace', margin:0 }}>{val}</p>
+            <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:4 }}>{label}</p>
+          </div>
+        ))}
+      </div>
+    )}
+    <div style={{ height:1, background:'var(--border-color)', margin:'4px 0 20px' }}/>
+    <p style={{ fontSize:13, fontWeight:700, color:'var(--text-secondary)', marginBottom:12 }}>Acta de aprobación del Comité</p>
+    <G cols={3}>
+      <F label="Tipo de sesión">
+        <Sel value={form.session_type} onChange={v=>set('session_type',v)}>
+          <option value="">— Seleccionar —</option>
+          {SESSION_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+        </Sel>
+      </F>
+      <F label="Número del acta">
+        <TxtInp value={form.minutes_number} onChange={v=>set('minutes_number',v)} max={LIMITS.minutes_number} placeholder="001-2025"/>
+      </F>
+      <F label="Fecha del acta">
+        <input className="input-field" type="date" value={form.minutes_date||''} onChange={e=>set('minutes_date',e.target.value)}/>
+      </F>
+    </G>
+  </>
+}
+
+/* ─── Sección 5: Actores ─────────────────────────────────────────── */
+function SecActores({ form, set, cats }) {
+  return <>
+    <ST icon={Users} color="#B91C3C" title="Actores del proyecto"
+      subtitle="Solo se listan registros activos en cada catálogo"/>
+    <G cols={1}>
+      <F label="Entidad contratante" required hint={`${cats.entities.length} entidades activas disponibles`}>
+        <SearchableSelect value={form.entity_id} onChange={v=>set('entity_id',v)}
+          placeholder="Buscar entidad por nombre o NIT..."
+          options={cats.entities.map(e=>({ value:e.entity_id, label:e.entity_name, sub:`NIT: ${e.tax_id}` }))}/>
+      </F>
+      <F label="Dependencia ejecutora" required hint={`${cats.departments.length} dependencias activas disponibles`}>
+        <SearchableSelect value={form.executing_department_id} onChange={v=>set('executing_department_id',v)}
+          placeholder="Buscar dependencia..."
+          options={cats.departments.map(d=>({ value:d.department_id, label:d.department_name }))}/>
+      </F>
+      <F label="Funcionario ordenador del gasto" required hint={`${cats.officials.length} funcionarios activos disponibles`}>
+        <SearchableSelect value={form.ordering_official_id} onChange={v=>set('ordering_official_id',v)}
+          placeholder="Buscar funcionario por nombre o identificación..."
+          options={cats.officials.map(o=>({ value:o.official_id, label:o.full_name, sub:`${o.identification_type} ${o.identification_number}` }))}/>
+      </F>
+      <F label="Correo electrónico principal">
+        <TxtInp type="email" value={form.main_email} onChange={v=>set('main_email',v)}
+          max={LIMITS.main_email} placeholder="correo@udistrital.edu.co"/>
+      </F>
+    </G>
+  </>
+}
+
+/* ─── Sección 6: Códigos RUP ─────────────────────────────────────── */
+function SecRup({ rupCodes, onChange, form, set }) {
+  return <>
+    <ST icon={Tag} color="#0EA5E9" title="Códigos RUP / UNSPSC"
+      subtitle="Clasificador de Bienes y Servicios. Navegue en cascada o use la búsqueda rápida"/>
+    {rupCodes.length === 0 && (
+      <div style={{ padding:'12px 16px', background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', borderRadius:10, marginBottom:20, fontSize:13, color:'#B45309' }}>
+        ⚠️ No hay códigos RUP asignados aún. Agregue al menos uno usando el selector.
+      </div>
+    )}
+    <RupSelector selectedCodes={rupCodes} onChange={onChange}/>
+    <div style={{ height:1, background:'var(--border-color)', margin:'24px 0 20px' }}/>
+    <F label="Observaciones generales de códigos RUP" hint={`Máx. ${LIMITS.rup_codes_general_observations} caracteres`}>
+      <TxtArea rows={4} value={form.rup_codes_general_observations}
+        onChange={v=>set('rup_codes_general_observations',v)}
+        max={LIMITS.rup_codes_general_observations}
+        placeholder="Observaciones sobre los códigos RUP asignados al proyecto..."/>
+    </F>
+  </>
+}
+
+/* ─── Sección 7: Adicional ───────────────────────────────────────── */
+function SecAdicional({ form, set }) {
+  return <>
+    <ST icon={Link2} color="#64748B" title="Información adicional"
+      subtitle="Datos complementarios, enlaces y observaciones generales"/>
+    <G cols={2}>
+      <F label="Acto administrativo">
+        <TxtInp value={form.administrative_act} onChange={v=>set('administrative_act',v)}
+          max={LIMITS.administrative_act} placeholder="Resolución 001 de 2025"/>
+      </F>
+      <div/>
+      <F label="Enlace SECOP" span={2}>
+        <TxtInp value={form.secop_link} onChange={v=>set('secop_link',v)}
+          max={LIMITS.secop_link} placeholder="https://www.secop.gov.co/..."/>
+      </F>
+    </G>
+    <G cols={1}>
+      <F label="Observaciones generales">
+        <TxtArea rows={4} value={form.observations} onChange={v=>set('observations',v)}
+          max={LIMITS.observations} placeholder="Observaciones, notas o comentarios relevantes del proyecto..."/>
+      </F>
+    </G>
+  </>
+}

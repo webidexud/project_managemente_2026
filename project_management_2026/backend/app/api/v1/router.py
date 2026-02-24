@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
+    project_emails,
     entities, entity_types, executing_departments,
     execution_modalities, financing_types,
     ordering_officials, project_statuses, projects, rup,
@@ -15,3 +16,4 @@ api_router.include_router(ordering_officials.router)
 api_router.include_router(project_statuses.router)
 api_router.include_router(projects.router)
 api_router.include_router(rup.router)
+api_router.include_router(project_emails.router)

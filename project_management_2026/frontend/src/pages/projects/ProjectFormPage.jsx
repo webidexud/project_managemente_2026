@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   FileText, Settings, DollarSign, Calendar, Users,
-  Tag, Link2, Save, ArrowLeft, CheckCircle2, AlertCircle
+  Tag, Link2, Save, ArrowLeft, CheckCircle2, AlertCircle, Mail, Plus, Trash2, Phone, User
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { projectsService, rupService } from '../../services/projects'
+import { projectsService, rupService, emailsService } from '../../services/projects'
 import {
   entitiesService, executingDepartmentsService, projectStatusesService,
   executionModalitiesService, financingTypesService, orderingOfficialsService
@@ -75,13 +75,38 @@ function TxtArea({ value, onChange, max, rows = 3, placeholder }) {
 /* ─── Input numérico con formato miles ───────────────────────────── */
 const fmtNum = (v) => {
   if (v === '' || v === null || v === undefined) return ''
-  const num = parseFloat(String(v).replace(/\./g, '').replace(',', '.'))
+  const num = parseFloat(coNum(String(v)))
   if (isNaN(num)) return ''
   return num.toLocaleString('es-CO', { maximumFractionDigits: 2 })
 }
+// coNum: convierte string a número sea cual sea el formato
+// Soporta: formato colombiano "1.234.567,89" y decimal inglés "1234567.89"
+function coNum(s) {
+  s = String(s).trim()
+  // Si tiene coma Y punto: determinar cuál es decimal por posición
+  if (s.includes('.') && s.includes(',')) {
+    // Formato colombiano: 1.234,56 → quitar puntos, cambiar coma a punto
+    return s.replace(/\./g, '').replace(',', '.')
+  }
+  // Solo coma: puede ser decimal colombiano "12,50" → "12.50"
+  if (s.includes(',') && !s.includes('.')) {
+    return s.replace(',', '.')
+  }
+  // Solo punto: puede ser miles "1.200" o decimal "12.50"
+  // Si el punto está seguido de exactamente 3 dígitos al final → es separador de miles
+  if (s.includes('.')) {
+    const afterDot = s.split('.').pop()
+    if (afterDot.length === 3 && !isNaN(afterDot)) {
+      return s.replace(/\./g, '') // quitar punto de miles
+    }
+    // sino: es punto decimal inglés → dejarlo tal cual
+    return s
+  }
+  return s
+}
 const parseNum = (v) => {
   if (v === '' || v === null || v === undefined) return 0
-  return parseFloat(String(v).replace(/\./g, '').replace(',', '.')) || 0
+  return parseFloat(coNum(String(v))) || 0
 }
 
 function MoneyInput({ value, onChange, placeholder, readOnly }) {
@@ -142,6 +167,10 @@ export default function ProjectFormPage() {
   const [form,     setForm]     = useState(EMPTY)
   const [rupCodes, setRupCodes] = useState([])
   const [nextNum,  setNextNum]  = useState(null)  // próximo número interno
+  const [emails,   setEmails]   = useState([])   // correos secundarios
+  const [emailForm, setEmailForm] = useState({ email:'', contact_type:'', contact_name:'', contact_position:'', contact_phone:'' })
+  const [emailErr,  setEmailErr]  = useState('')
+  const [savingEmail, setSavingEmail] = useState(false)
   const [cats,     setCats]     = useState({
     entities:[], departments:[], statuses:[], modalities:[], financing:[], officials:[], projTypes:[]
   })
@@ -203,9 +232,44 @@ export default function ProjectFormPage() {
         setLoading(false)
       })
       .catch(() => { toast.error('Error cargando proyecto'); navigate('/projects') })
+    // Cargar correos secundarios
+    emailsService.list(id).then(r => setEmails(r.data)).catch(() => {})
   }, [id, isEdit, navigate])
 
   const set = useCallback((k, v) => setForm(f => ({ ...f, [k]: v })), [])
+
+
+
+  // Funciones de correos secundarios
+  const addEmail = async () => {
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRe.test(emailForm.email)) { setEmailErr('Correo inválido'); return }
+    setEmailErr('')
+    if (!isEdit) {
+      // En creación: guardar en lista local, se persistirán al guardar el proyecto
+      setEmails(prev => [...prev, { ...emailForm, secondary_email_id: Date.now(), local: true }])
+      setEmailForm({ email:'', contact_type:'', contact_name:'', contact_position:'', contact_phone:'' })
+      return
+    }
+    setSavingEmail(true)
+    try {
+      const r = await emailsService.create(id, emailForm)
+      setEmails(prev => [...prev, r.data])
+      setEmailForm({ email:'', contact_type:'', contact_name:'', contact_position:'', contact_phone:'' })
+      toast.success('Correo agregado')
+    } catch(e) {
+      toast.error(e.response?.data?.detail || 'Error guardando correo')
+    } finally { setSavingEmail(false) }
+  }
+
+  const removeEmail = async (em) => {
+    if (em.local) { setEmails(prev => prev.filter(x => x.secondary_email_id !== em.secondary_email_id)); return }
+    try {
+      await emailsService.delete(id, em.secondary_email_id)
+      setEmails(prev => prev.filter(x => x.secondary_email_id !== em.secondary_email_id))
+      toast.success('Correo eliminado')
+    } catch(e) { toast.error('Error eliminando correo') }
+  }
 
   // Auto: aporte entidad = total - univ
   useEffect(() => {
@@ -224,23 +288,27 @@ export default function ProjectFormPage() {
 
   // Validación con foco automático en sección con error
   const validate = () => {
+    // Campos NOT NULL según BD: project_name, project_purpose, entity_id,
+    // executing_department_id, project_status_id, project_type_id,
+    // financing_type_id, execution_modality_id, project_value,
+    // start_date, end_date, ordering_official_id
     const checks = [
       ['identificacion', 'project_name',            'Nombre del proyecto'],
       ['identificacion', 'project_purpose',          'Objeto del proyecto'],
-      ['clasificacion',  'project_status_id',        'Estado'],
+      ['clasificacion',  'project_status_id',        'Estado del proyecto'],
       ['clasificacion',  'project_type_id',          'Tipo de proyecto'],
       ['clasificacion',  'financing_type_id',        'Tipo de financiación'],
       ['clasificacion',  'execution_modality_id',    'Modalidad de ejecución'],
-      ['financiero',     'project_value',            'Valor del proyecto'],
+      ['financiero',     'project_value',            'Valor total del proyecto'],
       ['fechas',         'start_date',               'Fecha de inicio'],
       ['fechas',         'end_date',                 'Fecha de fin'],
-      ['actores',        'entity_id',                'Entidad'],
+      ['actores',        'entity_id',                'Entidad contratante'],
       ['actores',        'executing_department_id',  'Dependencia ejecutora'],
-      ['actores',        'ordering_official_id',     'Funcionario ordenador'],
+      ['actores',        'ordering_official_id',     'Funcionario ordenador del gasto'],
     ]
     for (const [sec, k, label] of checks) {
       if (!form[k] && form[k] !== 0) {
-        toast.error(`Campo requerido: ${label}`)
+        toast.error(`Campo obligatorio: ${label}`)
         setSection(sec); return false
       }
     }
@@ -248,14 +316,26 @@ export default function ProjectFormPage() {
       toast.error('El valor del proyecto debe ser mayor a 0')
       setSection('financiero'); return false
     }
-    // Validaciones de fechas
+    // Validar check constraint BD: university_contribution + entity_contribution <= project_value
+    const total = parseNum(form.project_value)
+    const univ  = parseNum(form.university_contribution)
+    const ent   = parseNum(form.entity_contribution)
+    if (univ + ent > total) {
+      toast.error('La suma de aportes no puede superar el valor total del proyecto')
+      setSection('financiero'); return false
+    }
+    // Validar check constraint BD: end_date >= start_date
+    if (form.start_date && form.end_date && form.end_date < form.start_date) {
+      toast.error('La fecha de fin debe ser igual o posterior a la fecha de inicio')
+      setSection('fechas'); return false
+    }
     if (form.subscription_date && form.start_date && form.start_date < form.subscription_date) {
       toast.error('La fecha de inicio no puede ser anterior a la fecha de suscripción')
       setSection('fechas'); return false
     }
-    if (form.start_date && form.end_date && form.end_date <= form.start_date) {
-      toast.error('La fecha de fin debe ser posterior a la fecha de inicio')
-      setSection('fechas'); return false
+    if (form.minutes_date && form.start_date && form.minutes_date > form.end_date) {
+      toast.error('La fecha del acta no puede ser posterior a la fecha de fin del proyecto')
+      setSection('adicional'); return false
     }
     return true
   }
@@ -271,12 +351,21 @@ export default function ProjectFormPage() {
 
       const payload = {}
       for (const [k, v] of Object.entries(form)) {
-        // No enviar internal_project_number — lo genera el backend
+        // Nunca enviar claves de BD — son inmutables
         if (k === 'internal_project_number') continue
+        if (isEdit && k === 'project_year') continue
         if (v === '' || v === null || v === undefined) { payload[k] = null; continue }
-        if (numF.includes(k))      payload[k] = Number(v)
-        else if (decF.includes(k)) payload[k] = parseNum(v)
-        else                       payload[k] = v
+        if (numF.includes(k)) {
+          payload[k] = Number(v)
+        } else if (k === 'institutional_benefit_percentage') {
+          // NUMERIC(5,2): máx 999.99 — guardar como número simple sin parseNum
+          const pct = parseFloat(String(v).replace(',', '.'))
+          payload[k] = isNaN(pct) ? 12 : Math.min(pct, 999.99)
+        } else if (decF.filter(f => f !== 'institutional_benefit_percentage').includes(k)) {
+          payload[k] = parseNum(v)
+        } else {
+          payload[k] = v
+        }
       }
 
       let projId
@@ -294,6 +383,17 @@ export default function ProjectFormPage() {
         })))
       }
 
+      // Guardar correos secundarios locales (solo en creación)
+      if (!isEdit) {
+        const localEmails = emails.filter(e => e.local)
+        for (const em of localEmails) {
+          const { local, secondary_email_id, ...emailData } = em
+          // limpiar campos vacíos
+          const clean = Object.fromEntries(Object.entries(emailData).filter(([,v]) => v !== ''))
+          await emailsService.create(projId, clean).catch(() => {})
+        }
+      }
+
       toast.success(isEdit ? 'Proyecto actualizado ✓' : 'Proyecto creado ✓')
       navigate('/projects')
     } catch (err) {
@@ -305,7 +405,7 @@ export default function ProjectFormPage() {
   const hasPrev = curIdx > 0
   const hasNext = curIdx < SECTIONS.length - 1
 
-  if (loading) return (
+    if (loading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:300 }}>
       <p style={{ color:'var(--text-muted)', fontSize:14 }}>Cargando proyecto...</p>
     </div>
@@ -420,11 +520,11 @@ export default function ProjectFormPage() {
         {/* Contenido scrolleable */}
         <div style={{ flex:1, overflowY:'auto', background:'var(--bg-primary)' }}>
           <div style={{ maxWidth:780, margin:'0 auto', padding:36 }}>
-            {section==='identificacion' && <SecIdentificacion form={form} set={set} />}
-            {section==='clasificacion'  && <SecClasificacion  form={form} set={set} cats={cats} />}
+            {section==='identificacion' && <SecIdentificacion form={form} set={set} isEdit={isEdit}/>}
+            {section==='clasificacion'  && <SecClasificacion  form={form} set={set} cats={cats} isEdit={isEdit}/>}
             {section==='financiero'     && <SecFinanciero form={form} set={set} projectId={id} isEdit={isEdit}/>}
             {section==='fechas'         && <SecFechas         form={form} set={set} />}
-            {section==='actores'        && <SecActores        form={form} set={set} cats={cats} />}
+            {section==='actores'        && <SecActores        form={form} set={set} cats={cats} emails={emails} emailForm={emailForm} setEmailForm={setEmailForm} emailErr={emailErr} addEmail={addEmail} removeEmail={removeEmail} savingEmail={savingEmail} isEdit={isEdit}/>}
             {section==='rup'            && <SecRup            rupCodes={rupCodes} onChange={setRupCodes} form={form} set={set} />}
             {section==='adicional'      && <SecAdicional      form={form} set={set} />}
           </div>
@@ -487,19 +587,42 @@ const Sel = ({value,onChange,children}) => (
 )
 
 /* ─── Sección 1: Identificación ─────────────────────────────────── */
-function SecIdentificacion({ form, set }) {
+function SecIdentificacion({ form, set, isEdit }) {
   return <>
     <ST icon={FileText} title="Identificación del proyecto"
       subtitle="El número interno se asigna automáticamente al guardar"/>
+    {isEdit && (
+      <div style={{ marginBottom:16, padding:'10px 14px', borderRadius:'var(--radius-md)', background:'rgba(14,165,233,0.06)', border:'1px solid rgba(14,165,233,0.2)', fontSize:12, color:'var(--text-muted)' }}>
+        ℹ️ El <strong>año</strong> y el <strong>número interno</strong> del proyecto no son modificables — son la clave de identificación en la base de datos.
+      </div>
+    )}
     <G cols={2}>
-      <F label="Año del proyecto" required>
-        <input className="input-field" type="number" value={form.project_year} onChange={e=>set('project_year',e.target.value)} min={2020} max={2100}/>
+      <F label="Año del proyecto" required hint={isEdit ? 'No modificable · clave de BD' : undefined}>
+        <input className="input-field" type="number" value={form.project_year}
+          onChange={isEdit ? undefined : e=>set('project_year',e.target.value)}
+          readOnly={isEdit} min={2020} max={2100}
+          style={{ background: isEdit ? 'var(--bg-hover)' : undefined, cursor: isEdit ? 'not-allowed' : undefined }}/>
       </F>
-      <F label="N° externo" hint={`Máx. ${LIMITS.external_project_number} caracteres`}>
-        <TxtInp value={form.external_project_number} onChange={v=>set('external_project_number',v)}
-          max={LIMITS.external_project_number} placeholder="Ej: CONV-001"/>
-      </F>
+      {isEdit ? (
+        <F label="N° interno del proyecto" hint="No modificable · clave de BD">
+          <input className="input-field" value={form.internal_project_number || '—'} readOnly
+            style={{ background:'var(--bg-hover)', cursor:'not-allowed', fontFamily:'monospace', fontWeight:700 }}/>
+        </F>
+      ) : (
+        <F label="N° externo" hint={`Máx. ${LIMITS.external_project_number} caracteres`}>
+          <TxtInp value={form.external_project_number} onChange={v=>set('external_project_number',v)}
+            max={LIMITS.external_project_number} placeholder="Ej: CONV-001"/>
+        </F>
+      )}
     </G>
+    {isEdit && (
+      <G cols={1}>
+        <F label="N° externo (contrato)" hint={`Máx. ${LIMITS.external_project_number} caracteres`}>
+          <TxtInp value={form.external_project_number} onChange={v=>set('external_project_number',v)}
+            max={LIMITS.external_project_number} placeholder="Ej: CONV-001"/>
+        </F>
+      </G>
+    )}
     <G cols={1}>
       <F label="Nombre completo del proyecto" required>
         <TxtInp value={form.project_name} onChange={v=>set('project_name',v)}
@@ -578,7 +701,7 @@ function SecFinanciero({ form, set, projectId, isEdit }) {
   const benPct = total > 0 && benVal > 0 ? ((benVal / total) * 100).toFixed(2) : '0.00'
 
   const applySuggested = () => {
-    if (suggested !== null) set('institutional_benefit_value', suggested.toFixed(2))
+    if (suggested !== null) set('institutional_benefit_value', Math.round(suggested))
   }
 
   return <>
@@ -731,7 +854,7 @@ function SecFechas({ form, set }) {
 }
 
 /* ─── Sección 5: Actores ─────────────────────────────────────────── */
-function SecActores({ form, set, cats }) {
+function SecActores({ form, set, cats, emails, emailForm, setEmailForm, emailErr, addEmail, removeEmail, savingEmail, isEdit }) {
   return <>
     <ST icon={Users} color="#B91C3C" title="Actores del proyecto"
       subtitle="Solo se listan registros activos en cada catálogo"/>
@@ -751,11 +874,98 @@ function SecActores({ form, set, cats }) {
           placeholder="Buscar funcionario por nombre o identificación..."
           options={cats.officials.map(o=>({ value:o.official_id, label:o.full_name, sub:`${o.identification_type} ${o.identification_number}` }))}/>
       </F>
-      <F label="Correo electrónico principal">
+    </G>
+
+    {/* ── Correos de contacto ── */}
+    <div style={{ marginTop:24 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
+        <Mail size={16} color="#0EA5E9"/>
+        <p style={{ fontWeight:700, fontSize:14, color:'var(--text-primary)', margin:0 }}>Correos de contacto</p>
+      </div>
+
+      {/* Correo principal */}
+      <div style={{ background:'var(--bg-hover)', border:'1px solid var(--border-color)', borderRadius:'var(--radius-lg)', padding:'14px 16px', marginBottom:12 }}>
+        <p style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:8 }}>
+          Correo principal del proyecto
+        </p>
         <TxtInp type="email" value={form.main_email} onChange={v=>set('main_email',v)}
           max={LIMITS.main_email} placeholder="correo@udistrital.edu.co"/>
-      </F>
-    </G>
+      </div>
+
+      {/* Lista correos secundarios existentes */}
+      {emails.length > 0 && (
+        <div style={{ marginBottom:12 }}>
+          {emails.map(em => (
+            <div key={em.secondary_email_id} style={{
+              display:'flex', alignItems:'center', gap:10, padding:'10px 14px',
+              background:'var(--bg-card)', border:'1px solid var(--border-color)',
+              borderRadius:'var(--radius-md)', marginBottom:6,
+            }}>
+              <Mail size={14} color="var(--text-muted)" style={{ flexShrink:0 }}/>
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ fontSize:13, fontWeight:600, color:'var(--text-primary)', margin:0 }}>{em.email}</p>
+                <p style={{ fontSize:11, color:'var(--text-muted)', margin:0 }}>
+                  {[em.contact_name, em.contact_type, em.contact_position, em.contact_phone].filter(Boolean).join(' · ') || 'Sin información adicional'}
+                </p>
+              </div>
+              {em.local && <span style={{ fontSize:10, padding:'2px 6px', borderRadius:4, background:'rgba(245,158,11,0.1)', color:'#B45309', fontWeight:700 }}>Pendiente</span>}
+              <button onClick={()=>removeEmail(em)} style={{
+                border:'none', background:'transparent', cursor:'pointer', padding:4,
+                color:'var(--text-muted)', borderRadius:6, display:'flex', alignItems:'center',
+              }}>
+                <Trash2 size={14}/>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Formulario agregar correo secundario */}
+      <div style={{ background:'var(--bg-card)', border:'1.5px dashed var(--border-color)', borderRadius:'var(--radius-lg)', padding:'16px' }}>
+        <p style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:12 }}>
+          + Agregar correo secundario
+        </p>
+        <G cols={2}>
+          <F label="Correo electrónico" required>
+            <TxtInp type="email" value={emailForm.email}
+              onChange={v=>{ setEmailForm(f=>({...f,email:v})) }}
+              max={200} placeholder="contacto@entidad.gov.co"/>
+          </F>
+          <F label="Tipo de contacto" hint="Ej: Principal, Técnico, Financiero">
+            <TxtInp value={emailForm.contact_type}
+              onChange={v=>setEmailForm(f=>({...f,contact_type:v}))}
+              max={50} placeholder="Técnico"/>
+          </F>
+          <F label="Nombre del contacto">
+            <TxtInp value={emailForm.contact_name}
+              onChange={v=>setEmailForm(f=>({...f,contact_name:v}))}
+              max={100} placeholder="Nombre completo"/>
+          </F>
+          <F label="Cargo / Posición">
+            <TxtInp value={emailForm.contact_position}
+              onChange={v=>setEmailForm(f=>({...f,contact_position:v}))}
+              max={100} placeholder="Director de Proyecto"/>
+          </F>
+          <F label="Teléfono de contacto">
+            <TxtInp value={emailForm.contact_phone}
+              onChange={v=>setEmailForm(f=>({...f,contact_phone:v}))}
+              max={20} placeholder="3001234567"/>
+          </F>
+        </G>
+        {emailErr && (
+          <p style={{ fontSize:12, color:'#B91C3C', marginTop:6, marginBottom:8 }}>{emailErr}</p>
+        )}
+        <button onClick={addEmail} disabled={!emailForm.email || savingEmail} className="btn-secondary" style={{ marginTop:8, display:'flex', alignItems:'center', gap:6 }}>
+          <Plus size={14}/>
+          {savingEmail ? 'Guardando...' : 'Agregar correo'}
+        </button>
+        {!isEdit && emails.length > 0 && (
+          <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:8 }}>
+            ℹ️ Los correos se guardarán junto con el proyecto
+          </p>
+        )}
+      </div>
+    </div>
   </>
 }
 

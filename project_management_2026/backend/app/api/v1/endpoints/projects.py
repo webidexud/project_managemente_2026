@@ -84,12 +84,27 @@ def create_project(data: ProjectCreate, db: Session = Depends(get_db)):
 
 @router.put("/{id}", response_model=ProjectOut)
 def update_project(id: int, data: ProjectUpdate, db: Session = Depends(get_db)):
+    from sqlalchemy.exc import DataError, IntegrityError
     obj = db.query(Project).filter(Project.project_id == id).first()
     if not obj: raise HTTPException(404, "Proyecto no encontrado")
-    for k, v in data.model_dump(exclude_unset=True).items():
+    # Nunca permitir cambiar las claves de BD
+    safe_data = data.model_dump(exclude_unset=True)
+    safe_data.pop('project_year', None)
+    safe_data.pop('internal_project_number', None)
+    for k, v in safe_data.items():
         setattr(obj, k, v)
-    db.commit()
-    db.refresh(obj)
+    try:
+        db.commit()
+        db.refresh(obj)
+    except DataError as e:
+        db.rollback()
+        detail = str(e.orig) if hasattr(e, 'orig') else str(e)
+        if 'numeric field overflow' in detail:
+            raise HTTPException(400, "Error de rango numérico: verifique que el porcentaje de beneficio sea menor a 1000 y los valores monetarios sean correctos")
+        raise HTTPException(400, f"Error en los datos: {detail[:200]}")
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(400, "Error de integridad: verifique las fechas y valores del proyecto")
     return enrich(obj, get_ctx(db))
 
 

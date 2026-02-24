@@ -179,3 +179,33 @@ class ProjectRupAssign(BaseModel):
 
 class ProjectRupBulk(BaseModel):
     codes: list[ProjectRupAssign]
+
+
+# ── Correos secundarios ───────────────────────────────────────────────
+class SecondaryEmailCreate(BaseModel):
+    email:            str
+    contact_type:     Optional[str] = None
+    contact_name:     Optional[str] = None
+    contact_position: Optional[str] = None
+    contact_phone:    Optional[str] = None
+    observations:     Optional[str] = None
+
+class SecondaryEmailUpdate(BaseModel):
+    email:            Optional[str] = None
+    contact_type:     Optional[str] = None
+    contact_name:     Optional[str] = None
+    contact_position: Optional[str] = None
+    contact_phone:    Optional[str] = None
+    observations:     Optional[str] = None
+
+class SecondaryEmailOut(BaseModel):
+    secondary_email_id: int
+    project_id:         int
+    email:              str
+    contact_type:       Optional[str] = None
+    contact_name:       Optional[str] = None
+    contact_position:   Optional[str] = None
+    contact_phone:      Optional[str] = None
+    observations:       Optional[str] = None
+    is_active:          bool
+    model_config = {"from_attributes": True}

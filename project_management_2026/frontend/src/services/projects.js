@@ -22,3 +22,11 @@ export const rupService = {
 }
 
 // dentro de projectsService — agregar método getAdditions
+
+// ── Correos secundarios ─────────────────────────────────────────────
+export const emailsService = {
+  list:   (pid)           => api.get(`/projects/${pid}/emails/`),
+  create: (pid, data)     => api.post(`/projects/${pid}/emails/`, data),
+  update: (pid, eid, data)=> api.put(`/projects/${pid}/emails/${eid}`, data),
+  delete: (pid, eid)      => api.delete(`/projects/${pid}/emails/${eid}`),
+}

@@ -172,3 +172,20 @@ class ProjectRupCode(Base):
     assignment_date        = Column(Date)
     assigned_by_user_id    = Column(Integer)
     is_active              = Column(Boolean, default=True)
+
+
+class ProjectSecondaryEmail(Base):
+    __tablename__ = "project_secondary_emails"
+    secondary_email_id = Column(Integer, primary_key=True)
+    project_id         = Column(Integer, ForeignKey("projects.project_id"), nullable=False)
+    email              = Column(String(200), nullable=False)
+    contact_type       = Column(String(50))
+    contact_name       = Column(String(100))
+    contact_position   = Column(String(100))
+    contact_phone      = Column(String(20))
+    observations       = Column(Text)
+    is_active          = Column(Boolean, default=True)
+    created_at         = Column(DateTime, server_default=func.now())
+    created_by_user_id = Column(Integer)
+    updated_at         = Column(DateTime)
+    updated_by_user_id = Column(Integer)

@@ -5,6 +5,8 @@ import AppLayout from './components/layout/AppLayout'
 import DashboardPage from './pages/DashboardPage'
 import ProjectsPage from './pages/ProjectsPage'
 import ProjectFormPage from './pages/projects/ProjectFormPage'
+import ProjectViewPage from './pages/projects/ProjectViewPage'
+import ProjectModificationsPage from './pages/projects/ProjectModificationsPage'
 import EntitiesPage from './pages/catalogs/EntitiesPage'
 import EntityTypesPage from './pages/catalogs/EntityTypesPage'
 import ExecutingDepartmentsPage from './pages/catalogs/ExecutingDepartmentsPage'
@@ -35,20 +37,23 @@ export default function App() {
           }}
         />
         <Routes>
-          <Route path="/projects/new"       element={<ProjectFormPage/>}/>
-          <Route path="/projects/:id/edit"  element={<ProjectFormPage/>}/>
+          {/* Rutas de proyecto fuera del layout (pantalla completa) */}
+          <Route path="/projects/new"                    element={<ProjectFormPage />} />
+          <Route path="/projects/:id/edit"               element={<ProjectFormPage />} />
+          <Route path="/projects/:id/view"               element={<ProjectViewPage />} />
+          <Route path="/projects/:id/modifications"      element={<ProjectModificationsPage />} />
 
-          <Route element={<AppLayout/>}>
-            <Route path="/"                                       element={<Navigate to="/dashboard" replace/>}/>
-            <Route path="/dashboard"                              element={<DashboardPage/>}/>
-            <Route path="/projects"                               element={<ProjectsPage/>}/>
-            <Route path="/catalogs/entities"                      element={<EntitiesPage/>}/>
-            <Route path="/catalogs/entity-types"                  element={<EntityTypesPage/>}/>
-            <Route path="/catalogs/executing-departments"         element={<ExecutingDepartmentsPage/>}/>
-            <Route path="/catalogs/execution-modalities"          element={<ExecutionModalitiesPage/>}/>
-            <Route path="/catalogs/financing-types"               element={<FinancingTypesPage/>}/>
-            <Route path="/catalogs/ordering-officials"            element={<OrderingOfficialsPage/>}/>
-            <Route path="/catalogs/project-statuses"              element={<ProjectStatusesPage/>}/>
+          <Route element={<AppLayout />}>
+            <Route path="/"                                       element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard"                              element={<DashboardPage />} />
+            <Route path="/projects"                               element={<ProjectsPage />} />
+            <Route path="/catalogs/entities"                      element={<EntitiesPage />} />
+            <Route path="/catalogs/entity-types"                  element={<EntityTypesPage />} />
+            <Route path="/catalogs/executing-departments"         element={<ExecutingDepartmentsPage />} />
+            <Route path="/catalogs/execution-modalities"          element={<ExecutionModalitiesPage />} />
+            <Route path="/catalogs/financing-types"               element={<FinancingTypesPage />} />
+            <Route path="/catalogs/ordering-officials"            element={<OrderingOfficialsPage />} />
+            <Route path="/catalogs/project-statuses"              element={<ProjectStatusesPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

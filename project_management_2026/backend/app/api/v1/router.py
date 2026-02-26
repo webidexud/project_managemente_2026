@@ -4,6 +4,7 @@ from app.api.v1.endpoints import (
     entities, entity_types, executing_departments,
     execution_modalities, financing_types,
     ordering_officials, project_statuses, projects, rup,
+    project_modifications,
 )
 
 api_router = APIRouter()
@@ -17,3 +18,6 @@ api_router.include_router(project_statuses.router)
 api_router.include_router(projects.router)
 api_router.include_router(rup.router)
 api_router.include_router(project_emails.router)
+# ── Modificaciones de proyectos ──────────────────────────────────────
+api_router.include_router(project_modifications.router_project)
+api_router.include_router(project_modifications.router_mod)

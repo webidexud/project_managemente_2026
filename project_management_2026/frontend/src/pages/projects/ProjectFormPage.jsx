@@ -685,7 +685,7 @@ function SecFinanciero({ form, set, projectId, isEdit }) {
 
   const total = parseNum(form.project_value)
   const univ  = parseNum(form.university_contribution)
-  const ent   = parseNum(form.entity_contribution)   // automático: total - univ
+  const ent   = parseNum(form.entity_contribution)   
 
   // Calcular sugerencia: ((aporte_entidad + adiciones) * 12%) / 112%
   useEffect(() => {

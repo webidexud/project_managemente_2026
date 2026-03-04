@@ -1,11 +1,13 @@
+# v3.0 — REEMPLAZA: backend/app/api/v1/router.py
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
     project_emails,
     entities, entity_types, executing_departments,
     execution_modalities, financing_types,
     ordering_officials, project_statuses, projects, rup,
-    project_modifications,
+    project_modifications,  # endpoint original existente
 )
+from app.api.v1.endpoints import modifications  # nuevo v3.0
 
 api_router = APIRouter()
 api_router.include_router(entities.router)
@@ -18,6 +20,5 @@ api_router.include_router(project_statuses.router)
 api_router.include_router(projects.router)
 api_router.include_router(rup.router)
 api_router.include_router(project_emails.router)
-# ── Modificaciones de proyectos ──────────────────────────────────────
-api_router.include_router(project_modifications.router_project)
-api_router.include_router(project_modifications.router_mod)
+api_router.include_router(project_modifications.router)  # existente
+api_router.include_router(modifications.router)          # nuevo v3.0

@@ -875,6 +875,14 @@ function SecActores({ form, set, cats, emails, emailForm, setEmailForm, emailErr
           options={cats.officials.map(o=>({ value:o.official_id, label:o.full_name, sub:`${o.identification_type} ${o.identification_number}` }))}/>
       </F>
     </G>
+    <G cols={1}>
+      <F label='Supervisor del Contrato' required hint='¿Quién supervisa el contrato por parte de la Universidad?'>
+        <Sel value={form.supervisor_type||'JEFE_EXTENSION'} onChange={v=>set('supervisor_type',v)}>
+          <option value='JEFE_EXTENSION'>Jefe de la Oficina de Extensión</option>
+          <option value='RECTOR'>Rector</option>
+        </Sel>
+      </F>
+    </G>
 
     {/* ── Correos de contacto ── */}
     <div style={{ marginTop:24 }}>

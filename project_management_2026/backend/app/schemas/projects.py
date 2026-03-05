@@ -1,5 +1,5 @@
-# v3.0 — REEMPLAZA: backend/app/schemas/projects.py
-from pydantic import BaseModel, field_validator
+# backend/app/schemas/projects.py — v4.0
+from pydantic import BaseModel
 from typing import Optional, List, Any
 from datetime import datetime, date
 from decimal import Decimal
@@ -52,7 +52,7 @@ class ProjectOut(BaseModel):
     session_type: Optional[str] = None
     minutes_date: Optional[date] = None
     minutes_number: Optional[str] = None
-    supervisor_type: Optional[str] = None  # v3.0
+    supervisor_type: Optional[str] = None
     is_active: bool
     created_at: Optional[datetime] = None
     model_config = {"from_attributes": True}
@@ -60,6 +60,7 @@ class ProjectOut(BaseModel):
 
 class ProjectCreate(BaseModel):
     project_year: int
+    internal_project_number: Optional[int] = None
     external_project_number: Optional[str] = None
     project_name: str
     project_purpose: str
@@ -71,9 +72,9 @@ class ProjectCreate(BaseModel):
     execution_modality_id: int
     project_value: Decimal
     accounting_code: Optional[str] = None
-    institutional_benefit_percentage: Optional[Decimal] = Decimal("12.00")
+    institutional_benefit_percentage: Optional[Decimal] = None
     institutional_benefit_value: Optional[Decimal] = None
-    university_contribution: Optional[Decimal] = Decimal("0")
+    university_contribution: Optional[Decimal] = None
     entity_contribution: Optional[Decimal] = None
     beneficiaries_count: Optional[int] = None
     subscription_date: Optional[date] = None
@@ -88,27 +89,13 @@ class ProjectCreate(BaseModel):
     session_type: Optional[str] = None
     minutes_date: Optional[date] = None
     minutes_number: Optional[str] = None
-    supervisor_type: Optional[str] = "JEFE_EXTENSION"  # v3.0
-
-    @field_validator("end_date")
-    @classmethod
-    def end_after_start(cls, v, info):
-        if "start_date" in info.data and v < info.data["start_date"]:
-            raise ValueError("La fecha de fin debe ser posterior a la fecha de inicio")
-        return v
-
-    @field_validator("project_value")
-    @classmethod
-    def value_positive(cls, v):
-        if v <= 0:
-            raise ValueError("El valor del proyecto debe ser mayor a 0")
-        return v
+    supervisor_type: Optional[str] = 'JEFE_EXTENSION'
 
 
 class ProjectUpdate(BaseModel):
+    external_project_number: Optional[str] = None
     project_name: Optional[str] = None
     project_purpose: Optional[str] = None
-    external_project_number: Optional[str] = None
     entity_id: Optional[int] = None
     executing_department_id: Optional[int] = None
     project_status_id: Optional[int] = None
@@ -134,7 +121,7 @@ class ProjectUpdate(BaseModel):
     session_type: Optional[str] = None
     minutes_date: Optional[date] = None
     minutes_number: Optional[str] = None
-    supervisor_type: Optional[str] = None  # v3.0
+    supervisor_type: Optional[str] = None
 
 
 # ── Modificaciones ────────────────────────────────────────────────────
@@ -176,7 +163,7 @@ class ClauseChangeCreate(BaseModel):
     rp_to_release: Optional[str] = None
     liberation_amount: Optional[Decimal] = None
     clause_number: Optional[str] = "1"
-    clause_name: Optional[str] = "Modificacion contractual"
+    clause_name: Optional[str] = "Modificación Contractual"
     new_clause_text: Optional[str] = ""
 
 
@@ -238,17 +225,21 @@ class RupCodeOut(BaseModel):
     is_active: bool
     model_config = {"from_attributes": True}
 
+
 class RupSegment(BaseModel):
     segment_code: str
     segment_name: str
+
 
 class RupFamily(BaseModel):
     family_code: str
     family_name: str
 
+
 class RupClass(BaseModel):
     class_code: str
     class_name: str
+
 
 class ProjectRupCodeOut(BaseModel):
     project_rup_code_id: int
@@ -262,9 +253,11 @@ class ProjectRupCodeOut(BaseModel):
     is_active: bool
     model_config = {"from_attributes": True}
 
+
 class ProjectRupAssign(BaseModel):
     rup_code_id: int
     is_main_code: bool = False
+
 
 class ProjectRupBulk(BaseModel):
     codes: list[ProjectRupAssign]
@@ -272,29 +265,32 @@ class ProjectRupBulk(BaseModel):
 
 # ── Correos secundarios ───────────────────────────────────────────────
 class SecondaryEmailCreate(BaseModel):
-    email:            str
-    contact_type:     Optional[str] = None
-    contact_name:     Optional[str] = None
+    email: str
+    contact_type: Optional[str] = None
+    contact_name: Optional[str] = None
     contact_position: Optional[str] = None
-    contact_phone:    Optional[str] = None
-    observations:     Optional[str] = None
+    contact_phone: Optional[str] = None
+    observations: Optional[str] = None
+
 
 class SecondaryEmailUpdate(BaseModel):
-    email:            Optional[str] = None
-    contact_type:     Optional[str] = None
-    contact_name:     Optional[str] = None
+    email: Optional[str] = None
+    contact_type: Optional[str] = None
+    contact_name: Optional[str] = None
     contact_position: Optional[str] = None
-    contact_phone:    Optional[str] = None
-    observations:     Optional[str] = None
+    contact_phone: Optional[str] = None
+    observations: Optional[str] = None
+    is_active: Optional[bool] = None
+
 
 class SecondaryEmailOut(BaseModel):
     secondary_email_id: int
-    project_id:         int
-    email:              str
-    contact_type:       Optional[str] = None
-    contact_name:       Optional[str] = None
-    contact_position:   Optional[str] = None
-    contact_phone:      Optional[str] = None
-    observations:       Optional[str] = None
-    is_active:          bool
+    project_id: int
+    email: str
+    contact_type: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_position: Optional[str] = None
+    contact_phone: Optional[str] = None
+    observations: Optional[str] = None
+    is_active: bool
     model_config = {"from_attributes": True}

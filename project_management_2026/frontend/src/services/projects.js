@@ -1,3 +1,4 @@
+// frontend/src/services/projects.js — v4.2
 import api from './api'
 
 export const projectsService = {
@@ -13,7 +14,10 @@ export const projectsService = {
 
 export const modificationsService = {
   list:              (projectId)       => api.get(`/projects/${projectId}/modifications/`),
+  listSuspensions:   (projectId)       => api.get(`/projects/${projectId}/suspensions/`),
+  get:               (modId)           => api.get(`/modifications/${modId}`),
   create:            (projectId, data) => api.post(`/projects/${projectId}/modifications/`, data),
+  update:            (modId, data)     => api.put(`/modifications/${modId}`, data),
   toggle:            (modId)           => api.patch(`/modifications/${modId}/toggle`),
   addSuspension:     (modId, data)     => api.post(`/modifications/${modId}/suspension`, data),
   restartSuspension: (susId, data)     => api.patch(`/modifications/suspensions/${susId}/restart`, data),
@@ -37,4 +41,14 @@ export const emailsService = {
   create: (pid, data)      => api.post(`/projects/${pid}/emails/`, data),
   update: (pid, eid, data) => api.put(`/projects/${pid}/emails/${eid}`, data),
   delete: (pid, eid)       => api.delete(`/projects/${pid}/emails/${eid}`),
+}
+
+export const documentsService = {
+  list:     (projectId)   => api.get(`/projects/${projectId}/documents/`),
+  upload:   (projectId, formData) => api.post(`/projects/${projectId}/documents/upload`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  download: (documentId)  => api.get(`/documents/${documentId}/download`, { responseType: 'blob' }),
+  delete:   (documentId)  => api.delete(`/documents/${documentId}`),
+  types:    ()            => api.get('/document-types/'),
 }

@@ -791,63 +791,119 @@ function SecFinanciero({ form, set, projectId, isEdit }) {
 }
 
 /* ─── Sección 4: Fechas ──────────────────────────────────────────── */
-function SecFechas({ form, set }) {
+function SecFechas({ form, set, isEdit }) {
   const days = form.start_date && form.end_date && form.end_date > form.start_date
-    ? Math.round((new Date(form.end_date)-new Date(form.start_date))/86400000) : null
+    ? Math.round((new Date(form.end_date) - new Date(form.start_date)) / 86400000) : null
 
-  // Validación visual inline de fechas
-  const startErr = form.subscription_date && form.start_date && form.start_date < form.subscription_date
-  const endErr   = form.start_date && form.end_date && form.end_date <= form.start_date
+  const startErr = !isEdit && form.subscription_date && form.start_date && form.start_date < form.subscription_date
+  const endErr   = !isEdit && form.start_date && form.end_date && form.end_date <= form.start_date
 
   return <>
     <ST icon={Calendar} color="#F59E0B" title="Fechas y cronograma"
-      subtitle="La fecha de inicio no puede ser anterior a la suscripción · La fecha de fin debe ser posterior al inicio"/>
-    <p style={{ fontSize:13, fontWeight:700, color:'var(--text-secondary)', marginBottom:12 }}>Cronograma de ejecución</p>
+      subtitle={isEdit
+        ? 'Las fechas contractuales originales no son modificables — registra una prórroga en el módulo de Modificaciones'
+        : 'La fecha de inicio no puede ser anterior a la suscripción · La fecha de fin debe ser posterior al inicio'}
+    />
+
+    {/* Aviso cuando es edición */}
+    {isEdit && (
+      <div style={{
+        marginBottom: 16, padding: '10px 14px', borderRadius: 'var(--radius-md)',
+        background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)',
+        fontSize: 12, color: 'var(--text-muted)',
+      }}>
+        🔒 <strong>Fecha de inicio</strong> y <strong>Fecha de fin</strong> son inmutables — son las fechas originales del contrato.
+        Si el proyecto fue prorrogado, registra la modificación en <em>Modificaciones → Prórroga</em>.
+      </div>
+    )}
+
+    <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 12 }}>Cronograma de ejecución</p>
     <G cols={3}>
+      {/* Fecha de suscripción — siempre editable */}
       <F label="Fecha de suscripción" hint="Fecha de firma del convenio">
-        <input className="input-field" type="date" value={form.subscription_date||''} onChange={e=>set('subscription_date',e.target.value)}/>
+        <input
+          className="input-field"
+          type="date"
+          value={form.subscription_date || ''}
+          onChange={e => set('subscription_date', e.target.value)}
+        />
       </F>
-      <F label="Fecha de inicio" required>
+
+      {/* Fecha de inicio — readonly en edición */}
+      <F label="Fecha de inicio" required hint={isEdit ? 'No modificable · fecha original del contrato' : undefined}>
         <div>
-          <input className="input-field" type="date" value={form.start_date||''} onChange={e=>set('start_date',e.target.value)}
-            min={form.subscription_date||''}
-            style={{ borderColor: startErr?'#B91C3C':undefined }}/>
-          {startErr && <p style={{ fontSize:11, color:'#B91C3C', marginTop:4 }}>⚠ No puede ser anterior a la suscripción</p>}
+          <input
+            className="input-field"
+            type="date"
+            value={form.start_date || ''}
+            onChange={isEdit ? undefined : e => set('start_date', e.target.value)}
+            readOnly={isEdit}
+            min={!isEdit ? (form.subscription_date || '') : undefined}
+            style={{
+              borderColor: startErr ? '#B91C3C' : isEdit ? 'var(--border-color)' : undefined,
+              background: isEdit ? 'var(--bg-hover)' : undefined,
+              cursor: isEdit ? 'not-allowed' : undefined,
+              opacity: isEdit ? 0.75 : 1,
+            }}
+          />
+          {startErr && <p style={{ fontSize: 11, color: '#B91C3C', marginTop: 4 }}>⚠ No puede ser anterior a la suscripción</p>}
         </div>
       </F>
-      <F label="Fecha de fin" required>
+
+      {/* Fecha de fin — readonly en edición */}
+      <F label="Fecha de fin original" required hint={isEdit ? 'No modificable · fecha original del contrato' : undefined}>
         <div>
-          <input className="input-field" type="date" value={form.end_date||''} onChange={e=>set('end_date',e.target.value)}
-            min={form.start_date||''}
-            style={{ borderColor: endErr?'#B91C3C':undefined }}/>
-          {endErr && <p style={{ fontSize:11, color:'#B91C3C', marginTop:4 }}>⚠ Debe ser posterior a la fecha de inicio</p>}
+          <input
+            className="input-field"
+            type="date"
+            value={form.end_date || ''}
+            onChange={isEdit ? undefined : e => set('end_date', e.target.value)}
+            readOnly={isEdit}
+            min={!isEdit ? (form.start_date || '') : undefined}
+            style={{
+              borderColor: endErr ? '#B91C3C' : isEdit ? 'var(--border-color)' : undefined,
+              background: isEdit ? 'var(--bg-hover)' : undefined,
+              cursor: isEdit ? 'not-allowed' : undefined,
+              opacity: isEdit ? 0.75 : 1,
+            }}
+          />
+          {endErr && <p style={{ fontSize: 11, color: '#B91C3C', marginTop: 4 }}>⚠ Debe ser posterior a la fecha de inicio</p>}
         </div>
       </F>
     </G>
+
     {days !== null && (
-      <div style={{ display:'flex', gap:10, marginBottom:24 }}>
-        {[[`${days} días`,'Duración total','#0EA5E9'],[`≈ ${Math.round(days/30)} meses`,'Aproximados','#10B981'],[`${(days/365).toFixed(1)} años`,'En años','#8B5CF6']].map(([val,label,color])=>(
-          <div key={label} style={{ flex:1, textAlign:'center', padding:'14px 8px', borderRadius:10, background:`${color}08`, border:`1px solid ${color}22` }}>
-            <p style={{ fontSize:20, fontWeight:800, color, fontFamily:'monospace', margin:0 }}>{val}</p>
-            <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:4 }}>{label}</p>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
+        {[
+          [`${days} días`,              'Duración original', '#0EA5E9'],
+          [`≈ ${Math.round(days/30)} meses`, 'Aproximados',   '#10B981'],
+          [`${(days/365).toFixed(1)} años`,  'En años',       '#8B5CF6'],
+        ].map(([val, label, color]) => (
+          <div key={label} style={{
+            flex: 1, textAlign: 'center', padding: '14px 8px', borderRadius: 10,
+            background: `${color}08`, border: `1px solid ${color}22`,
+          }}>
+            <p style={{ fontSize: 20, fontWeight: 800, color, fontFamily: 'monospace', margin: 0 }}>{val}</p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{label}</p>
           </div>
         ))}
       </div>
     )}
-    <div style={{ height:1, background:'var(--border-color)', margin:'4px 0 20px' }}/>
-    <p style={{ fontSize:13, fontWeight:700, color:'var(--text-secondary)', marginBottom:12 }}>Acta de aprobación del Comité</p>
+
+    <div style={{ height: 1, background: 'var(--border-color)', margin: '4px 0 20px' }} />
+    <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 12 }}>Acta de aprobación del Comité</p>
     <G cols={3}>
       <F label="Tipo de sesión">
-        <Sel value={form.session_type} onChange={v=>set('session_type',v)}>
+        <Sel value={form.session_type} onChange={v => set('session_type', v)}>
           <option value="">— Seleccionar —</option>
-          {SESSION_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+          {SESSION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
         </Sel>
       </F>
       <F label="Número del acta">
-        <TxtInp value={form.minutes_number} onChange={v=>set('minutes_number',v)} max={LIMITS.minutes_number} placeholder="001-2025"/>
+        <TxtInp value={form.minutes_number} onChange={v => set('minutes_number', v)} max={LIMITS.minutes_number} placeholder="001-2025" />
       </F>
       <F label="Fecha del acta">
-        <input className="input-field" type="date" value={form.minutes_date||''} onChange={e=>set('minutes_date',e.target.value)}/>
+        <input className="input-field" type="date" value={form.minutes_date || ''} onChange={e => set('minutes_date', e.target.value)} />
       </F>
     </G>
   </>

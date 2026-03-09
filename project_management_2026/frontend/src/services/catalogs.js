@@ -1,5 +1,19 @@
 import api from './api'
 
+// ── Auth ──────────────────────────────────────────────────────────────
+export const authService = {
+  login: (username, password) => {
+    const form = new URLSearchParams()
+    form.append('username', username)
+    form.append('password', password)
+    return api.post('/auth/login', form, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    })
+  },
+  register: (data) => api.post('/auth/register', data),
+}
+
+// ── Catálogos CRUD genérico ───────────────────────────────────────────
 const crud = (prefix) => ({
   list:   (activeOnly = false) => api.get(`${prefix}/?active_only=${activeOnly}`),
   create: (data)               => api.post(`${prefix}/`, data),

@@ -6,20 +6,20 @@ const navItems = [
   {
     section: 'Principal',
     items: [
-      { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/projects', icon: FolderOpen, label: 'Proyectos' },
+      { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { to: '/projects',  icon: FolderOpen,      label: 'Proyectos' },
     ],
   },
   {
     section: 'Catálogos',
     items: [
-      { to: '/catalogs/entities', icon: Globe, label: 'Entidades' },
-      { to: '/catalogs/entity-types', icon: Building2, label: 'Tipos de Entidad' },
-      { to: '/catalogs/executing-departments', icon: University, label: 'Dependencias' },
-      { to: '/catalogs/execution-modalities', icon: Layers, label: 'Modalidades' },
-      { to: '/catalogs/financing-types', icon: DollarSign, label: 'Financiaciones' },
-      { to: '/catalogs/ordering-officials', icon: UserCheck, label: 'Funcionarios' },
-      { to: '/catalogs/project-statuses', icon: Activity, label: 'Estados' },
+      { to: '/catalogs/entities',     icon: Globe,      label: 'Entidades' },
+      { to: '/catalogs/entity-types', icon: Building2,  label: 'Tipos de Entidad' },
+      { to: '/catalogs/departments',  icon: University, label: 'Dependencias' },
+      { to: '/catalogs/modalities',   icon: Layers,     label: 'Modalidades' },
+      { to: '/catalogs/financing',    icon: DollarSign, label: 'Financiaciones' },
+      { to: '/catalogs/officials',    icon: UserCheck,  label: 'Funcionarios' },
+      { to: '/catalogs/statuses',     icon: Activity,   label: 'Estados' },
     ],
   },
 ]
@@ -50,7 +50,8 @@ export default function Sidebar() {
             <ul style={{ listStyle: 'none' }}>
               {section.items.map((item) => (
                 <li key={item.to}>
-                  <NavLink to={item.to} end={item.to === '/'}
+                  <NavLink
+                    to={item.to}
                     style={({ isActive }) => ({
                       display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 7,
                       fontSize: 12.5, fontWeight: isActive ? 600 : 500,
@@ -58,7 +59,8 @@ export default function Sidebar() {
                       background: isActive ? 'rgba(14,165,233,0.2)' : 'transparent',
                       borderLeft: isActive ? '3px solid #0EA5E9' : '3px solid transparent',
                       textDecoration: 'none', transition: 'all 0.15s ease', marginBottom: 1,
-                    })}>
+                    })}
+                  >
                     {({ isActive }) => (
                       <>
                         <item.icon size={14} style={{ flexShrink: 0, opacity: isActive ? 1 : 0.6 }} />

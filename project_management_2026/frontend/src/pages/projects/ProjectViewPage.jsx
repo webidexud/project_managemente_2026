@@ -1,5 +1,5 @@
-// frontend/src/pages/projects/ProjectViewPage.jsx — v4.1
-// + Sección de modificaciones al final con detalle expandible
+// frontend/src/pages/projects/ProjectViewPage.jsx — v4.2
+// + Trazabilidad completa de plazos con línea de tiempo de prórrogas
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
@@ -18,6 +18,11 @@ function fmtMoney(v) {
   return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 })
 }
 function fmtPct(v) { return v != null ? `${parseFloat(v).toFixed(2)}%` : '—' }
+function diffDays(a, b) {
+  if (!a || !b) return null
+  const diff = Math.round((new Date(b) - new Date(a)) / 86400000)
+  return diff > 0 ? diff : null
+}
 
 /* ─── Meta por tipo modificación ─────────────────────────────────── */
 const TYPE_META = {
@@ -220,6 +225,180 @@ function TypeBadge({ type }) {
   )
 }
 
+/* ─── Trazabilidad de plazos ─────────────────────────────────────── */
+function PlazosTrazabilidad({ p, mods }) {
+  const COLOR_ORIG  = '#F59E0B'
+  const COLOR_PROX  = '#0EA5E9'
+  const COLOR_FINAL = '#10B981'
+
+  // Prórrogas activas ordenadas
+  const prorrogas = (mods || [])
+    .filter(m => ['EXTENSION', 'BOTH'].includes(m.modification_type) && m.is_active && m.new_end_date)
+    .sort((a, b) => a.modification_number - b.modification_number)
+
+  const hasProrrogas = prorrogas.length > 0
+  const fechaFinVigente = hasProrrogas ? prorrogas[prorrogas.length - 1].new_end_date : p.end_date
+  const diasOriginales  = diffDays(p.start_date, p.end_date)
+  const diasVigentes    = diffDays(p.start_date, fechaFinVigente)
+  const diasProrrogados = prorrogas.reduce((acc, m) => acc + (m.extension_days || 0), 0)
+
+  return (
+    <Section icon={Calendar} color={COLOR_ORIG} title="Plazos del Contrato">
+
+      {/* Fechas base */}
+      <Grid cols={3}>
+        <Field label="Fecha de suscripción"  value={fmtDate(p.subscription_date)} />
+        <Field label="Fecha de inicio"       value={fmtDate(p.start_date)} />
+        <Field label="Fecha de fin original" value={fmtDate(p.end_date)} />
+      </Grid>
+
+      {/* Duración original */}
+      {diasOriginales && (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+          {[
+            [`${diasOriginales} días`,                     'Duración original',  COLOR_ORIG],
+            [`≈ ${Math.round(diasOriginales / 30)} meses`, 'Aproximados',        '#8B5CF6'],
+            [`${(diasOriginales / 365).toFixed(1)} años`,  'En años',            '#64748B'],
+          ].map(([val, lbl, color]) => (
+            <div key={lbl} style={{ flex: 1, textAlign: 'center', padding: '12px 8px', borderRadius: 10, background: `${color}08`, border: `1px solid ${color}22` }}>
+              <p style={{ fontSize: 18, fontWeight: 800, color, fontFamily: 'monospace', margin: 0 }}>{val}</p>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{lbl}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Línea de tiempo de prórrogas */}
+      {hasProrrogas && (
+        <>
+          <div style={{ height: 1, background: 'var(--border-color)', margin: '0 0 18px' }} />
+          <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 16 }}>
+            Trazabilidad de prórrogas
+          </p>
+
+          <div style={{ position: 'relative', paddingLeft: 30 }}>
+
+            {/* Nodo inicial: contrato original */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: 16, position: 'relative' }}>
+              <div style={{ position: 'absolute', left: -30, top: 5, width: 14, height: 14, borderRadius: '50%', background: COLOR_ORIG, border: '2px solid var(--bg-primary)', boxShadow: `0 0 0 3px ${COLOR_ORIG}33`, zIndex: 1 }} />
+              <div style={{ position: 'absolute', left: -24, top: 19, width: 2, height: 'calc(100% + 4px)', background: `linear-gradient(${COLOR_ORIG}80, ${COLOR_PROX}80)` }} />
+              <div style={{ background: `${COLOR_ORIG}10`, border: `1px solid ${COLOR_ORIG}30`, borderRadius: 8, padding: '10px 14px', flex: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: COLOR_ORIG }}>📋 Contrato original</span>
+                  <span style={{ fontSize: 12, fontFamily: 'monospace', color: COLOR_ORIG, fontWeight: 700 }}>
+                    Fin: {fmtDate(p.end_date)}
+                  </span>
+                </div>
+                {diasOriginales && (
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                    {diasOriginales} días · {Math.round(diasOriginales / 30)} meses aprox.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Nodos de prórrogas */}
+            {prorrogas.map((m, idx) => {
+              const isLast  = idx === prorrogas.length - 1
+              const prevFin = idx === 0 ? p.end_date : prorrogas[idx - 1].new_end_date
+              const color   = isLast ? COLOR_FINAL : COLOR_PROX
+
+              return (
+                <div key={m.modification_id} style={{ display: 'flex', alignItems: 'flex-start', marginBottom: isLast ? 0 : 16, position: 'relative' }}>
+                  <div style={{ position: 'absolute', left: -30, top: 5, width: 14, height: 14, borderRadius: '50%', background: color, border: '2px solid var(--bg-primary)', boxShadow: `0 0 0 3px ${color}33`, zIndex: 1 }} />
+                  {!isLast && (
+                    <div style={{ position: 'absolute', left: -24, top: 19, width: 2, height: 'calc(100% + 4px)', background: `${COLOR_PROX}80` }} />
+                  )}
+                  <div style={{ background: `${color}10`, border: `1px solid ${color}30`, borderRadius: 8, padding: '10px 14px', flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <div>
+                        <span style={{ fontSize: 12, fontWeight: 700, color }}>
+                          {isLast ? '✅' : '🔄'} Prórroga #{m.modification_number}
+                          {m.modification_type === 'BOTH' && (
+                            <span style={{ marginLeft: 6, fontSize: 10, background: '#F59E0B22', color: '#F59E0B', padding: '1px 6px', borderRadius: 10, fontWeight: 600 }}>+ Adición</span>
+                          )}
+                        </span>
+                        {m.administrative_act && (
+                          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '3px 0 0' }}>
+                            Acto: <span style={{ fontFamily: 'monospace' }}>{m.administrative_act}</span>
+                            {m.approval_date && ` · ${fmtDate(m.approval_date)}`}
+                          </p>
+                        )}
+                        {m.extension_period_text && (
+                          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0', fontStyle: 'italic' }}>
+                            "{m.extension_period_text}"
+                          </p>
+                        )}
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+                          Anterior: <span style={{ fontFamily: 'monospace' }}>{fmtDate(prevFin)}</span>
+                        </p>
+                        <p style={{ fontSize: 13, fontWeight: 800, color, fontFamily: 'monospace', margin: '2px 0 0' }}>
+                          → {fmtDate(m.new_end_date)}
+                        </p>
+                        {m.extension_days && (
+                          <p style={{ fontSize: 11, color, margin: '2px 0 0', fontWeight: 600 }}>+{m.extension_days} días</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Resumen final */}
+          <div style={{ height: 1, background: 'var(--border-color)', margin: '20px 0 16px' }} />
+          <div style={{ background: `${COLOR_FINAL}08`, border: `2px solid ${COLOR_FINAL}33`, borderRadius: 12, padding: '16px 20px' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: COLOR_FINAL, textTransform: 'uppercase', letterSpacing: '.06em', margin: '0 0 12px' }}>
+              Fecha de finalización vigente
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <p style={{ fontSize: 24, fontWeight: 900, color: COLOR_FINAL, fontFamily: 'monospace', margin: 0 }}>
+                  {fmtDate(fechaFinVigente)}
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                  Incluye {prorrogas.length} prórroga{prorrogas.length !== 1 ? 's' : ''} ·{' '}
+                  <strong style={{ color: COLOR_PROX }}>+{diasProrrogados} días adicionales</strong>
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ textAlign: 'center', padding: '10px 16px', borderRadius: 8, background: `${COLOR_FINAL}12`, border: `1px solid ${COLOR_FINAL}25` }}>
+                  <p style={{ fontSize: 18, fontWeight: 800, color: COLOR_FINAL, fontFamily: 'monospace', margin: 0 }}>{diasVigentes} días</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '3px 0 0' }}>Duración total vigente</p>
+                </div>
+                <div style={{ textAlign: 'center', padding: '10px 16px', borderRadius: 8, background: `${COLOR_PROX}12`, border: `1px solid ${COLOR_PROX}25` }}>
+                  <p style={{ fontSize: 18, fontWeight: 800, color: COLOR_PROX, fontFamily: 'monospace', margin: 0 }}>+{diasProrrogados} días</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '3px 0 0' }}>Total prorrogado</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Sin prórrogas */}
+      {!hasProrrogas && (
+        <div style={{ marginTop: 4, padding: '10px 14px', borderRadius: 8, background: 'rgba(100,116,139,0.06)', border: '1px solid rgba(100,116,139,0.15)', fontSize: 12, color: 'var(--text-muted)' }}>
+          ℹ️ Este contrato no tiene prórrogas registradas. La fecha de fin original es la vigente.
+        </div>
+      )}
+
+      {/* Tipo de supervisor */}
+      {p.supervisor_type && (
+        <>
+          <div style={{ height: 1, background: 'var(--border-color)', margin: '18px 0 14px' }} />
+          <Grid cols={2}>
+            <Field label="Tipo de supervisor" value={p.supervisor_type === 'JEFE_EXTENSION' ? 'Jefe de Extensión' : 'Rector'} />
+          </Grid>
+        </>
+      )}
+    </Section>
+  )
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    PÁGINA
 ═══════════════════════════════════════════════════════════════════ */
@@ -246,7 +425,7 @@ export default function ProjectViewPage() {
         setEmails(em.data)
         setMods(Array.isArray(mo.data) ? mo.data : [])
       })
-      .catch(() => { toast.error('Error cargando proyecto'); navigate('/projects') })
+      .catch(() => { toast.error('Error cargando el proyecto'); navigate('/projects') })
       .finally(() => setLoading(false))
   }, [id, navigate])
 
@@ -256,43 +435,41 @@ export default function ProjectViewPage() {
     </div>
   )
 
+  if (!project) return null
   const p = project
-  const toggleExpand = (modId) => setExpanded(prev => ({ ...prev, [modId]: !prev[modId] }))
-
-  // Totales de modificaciones activas
-  const activeMods = mods.filter(m => m.is_active)
-  const totalAdiciones = activeMods
-    .filter(m => ['ADDITION', 'BOTH'].includes(m.modification_type))
-    .reduce((s, m) => s + (parseFloat(m.addition_value) || 0), 0)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-primary)' }}>
 
-      {/* ── Topbar ── */}
-      <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)', padding: '10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={() => navigate('/projects')} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--border-color)', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13, fontFamily: 'inherit', padding: '7px 12px', borderRadius: 8 }}>
-            <ArrowLeft size={15} /> Volver
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 28px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button onClick={() => navigate('/projects')} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', padding: '7px 0' }}>
+            <ArrowLeft size={16} /> Proyectos
           </button>
-          <div style={{ width: 1, height: 24, background: 'var(--border-color)' }} />
+          <span style={{ color: 'var(--border-color)' }}>·</span>
           <div>
-            <h1 style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-              Vista del proyecto · {p.project_year} #{p.internal_project_number}
-            </h1>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{p.project_name}</p>
+            <p style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              {p.project_name}
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+              {p.project_year} · #{p.internal_project_number}
+              {p.status_name && (
+                <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 10, background: `${p.status_color || '#94A3B8'}18`, color: p.status_color || '#94A3B8', fontWeight: 600, fontSize: 11 }}>
+                  {p.status_name}
+                </span>
+              )}
+            </p>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => navigate(`/projects/${id}/documents`)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.1)', border: '1px solid rgba(99,102,241,.3)', color: '#6366F1', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', padding: '7px 14px', borderRadius: 8, fontWeight: 600 }}>
+          <button onClick={() => navigate(`/projects/${id}/modifications`)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--border-color)', color: '#F59E0B', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', padding: '7px 14px', borderRadius: 8, fontWeight: 600 }}>
+            <GitBranch size={14} /> Modificaciones
+          </button>
+          <button onClick={() => navigate(`/projects/${id}/documents`)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--border-color)', color: '#10B981', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', padding: '7px 14px', borderRadius: 8, fontWeight: 600 }}>
             <FolderOpen size={14} /> Documentos
           </button>
-          <button onClick={() => navigate(`/projects/${id}/modifications`)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(245,158,11,.1)', border: '1px solid rgba(245,158,11,.3)', color: '#D97706', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', padding: '7px 14px', borderRadius: 8, fontWeight: 600 }}>
-            <GitBranch size={14} /> Modificaciones {mods.length > 0 && <span style={{ background: '#F59E0B', color: '#fff', borderRadius: 20, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>{mods.length}</span>}
-          </button>
-          <button onClick={() => navigate(`/projects/${id}/edit`)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(14,165,233,.1)', border: '1px solid rgba(14,165,233,.3)', color: '#0EA5E9', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', padding: '7px 14px', borderRadius: 8, fontWeight: 600 }}>
+          <button onClick={() => navigate(`/projects/${id}/edit`)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--border-color)', color: '#0EA5E9', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', padding: '7px 14px', borderRadius: 8, fontWeight: 600 }}>
             <Pencil size={14} /> Editar
           </button>
         </div>
@@ -345,19 +522,8 @@ export default function ProjectViewPage() {
             {p.beneficiaries_count && <Grid cols={2}><Field label="Número de beneficiarios" value={p.beneficiaries_count} /></Grid>}
           </Section>
 
-          {/* Plazos */}
-          <Section icon={Calendar} color="#F59E0B" title="Plazos del Contrato">
-            <Grid cols={3}>
-              <Field label="Fecha suscripción" value={fmtDate(p.subscription_date)} />
-              <Field label="Fecha inicio" value={fmtDate(p.start_date)} />
-              <Field label="Fecha fin" value={fmtDate(p.end_date)} />
-            </Grid>
-            {p.supervisor_type && (
-              <Grid cols={2}>
-                <Field label="Tipo de supervisor" value={p.supervisor_type === 'JEFE_EXTENSION' ? 'Jefe de Extensión' : 'Rector'} />
-              </Grid>
-            )}
-          </Section>
+          {/* ── Plazos con trazabilidad completa ── */}
+          <PlazosTrazabilidad p={p} mods={mods} />
 
           {/* Actores */}
           <Section icon={Users} color="#0EA5E9" title="Actores del Contrato">
@@ -412,91 +578,37 @@ export default function ProjectViewPage() {
             </Section>
           )}
 
-          {/* ── MODIFICACIONES ────────────────────────────────────────── */}
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', padding: '20px 24px', marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border-color)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(245,158,11,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <GitBranch size={16} color="#F59E0B" />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', margin: 0, textTransform: 'uppercase', letterSpacing: '.06em' }}>
-                    Modificaciones {mods.length > 0 && <span style={{ fontSize: 11, background: '#F59E0B20', color: '#D97706', borderRadius: 20, padding: '1px 8px', marginLeft: 6 }}>{mods.length}</span>}
-                  </h3>
-                  {totalAdiciones > 0 && (
-                    <p style={{ fontSize: 11, color: '#10B981', margin: '2px 0 0', fontWeight: 600 }}>
-                      + {fmtMoney(totalAdiciones)} en adiciones · Valor final: {fmtMoney((parseFloat(p.project_value) || 0) + totalAdiciones)}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <button onClick={() => navigate(`/projects/${id}/modifications`)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(245,158,11,.1)', border: '1px solid rgba(245,158,11,.3)', color: '#D97706', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', padding: '6px 12px', borderRadius: 8, fontWeight: 600 }}>
-                <GitBranch size={13} /> Gestionar
-              </button>
-            </div>
-
-            {mods.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--text-muted)', fontSize: 13 }}>
-                Sin modificaciones registradas
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* ── MODIFICACIONES ── */}
+          {mods.length > 0 && (
+            <Section icon={GitBranch} color="#F59E0B" title={`Modificaciones (${mods.length})`}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {mods.map(m => {
-                  const meta   = TYPE_META[m.modification_type] || { label: m.modification_type, color: '#94A3B8' }
+                  const meta = TYPE_META[m.modification_type] || { label: m.modification_type, color: '#94A3B8' }
                   const isOpen = !!expanded[m.modification_id]
                   return (
-                    <div key={m.modification_id} style={{
-                      border: '1px solid var(--border-color)',
-                      borderLeft: `4px solid ${m.is_active ? meta.color : '#94A3B8'}`,
-                      borderRadius: 10,
-                      background: 'var(--bg-hover)',
-                      opacity: m.is_active ? 1 : 0.6,
-                    }}>
-                      {/* Cabecera */}
+                    <div key={m.modification_id} style={{ border: '1px solid var(--border-color)', borderRadius: 10, overflow: 'hidden' }}>
                       <button
-                        onClick={() => toggleExpand(m.modification_id)}
-                        style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '12px 14px', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}
+                        onClick={() => setExpanded(prev => ({ ...prev, [m.modification_id]: !isOpen }))}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'var(--bg-hover)', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
                       >
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                            <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)' }}>
-                              Modificación #{m.modification_number}
-                            </span>
-                            <TypeBadge type={m.modification_type} />
-                            {!m.is_active && <span style={{ fontSize: 10, color: '#94A3B8', fontWeight: 700 }}>INACTIVA</span>}
-                          </div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 16px', fontSize: 12 }}>
-                            {m.approval_date && <span style={{ color: 'var(--text-muted)' }}>📅 {fmtDate(m.approval_date)}</span>}
-                            {m.administrative_act && <span style={{ color: 'var(--text-muted)' }}>📄 {m.administrative_act}</span>}
-                            {m.addition_value && <span style={{ color: '#10B981', fontWeight: 700, fontFamily: 'monospace' }}>+ {fmtMoney(m.addition_value)}</span>}
-                            {m.new_end_date && <span style={{ color: '#0EA5E9', fontWeight: 600 }}>🕐 {fmtDate(m.new_end_date)}{m.extension_period_text ? ` (${m.extension_period_text})` : ''}</span>}
-                            {m.suspension && <span style={{ color: '#EF4444' }}>⏸ {fmtDate(m.suspension.suspension_start_date)} → {fmtDate(m.suspension.suspension_end_date)}</span>}
-                          </div>
-                          {m.justification && !isOpen && (
-                            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 500 }}>
-                              {m.justification}
-                            </p>
-                          )}
-                        </div>
-                        <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
-                          {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'monospace', minWidth: 28 }}>#{m.modification_number}</span>
+                        <TypeBadge type={m.modification_type} />
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)', flex: 1 }}>
+                          {m.administrative_act && <span style={{ fontFamily: 'monospace', marginRight: 8 }}>{m.administrative_act}</span>}
+                          {m.approval_date && fmtDate(m.approval_date)}
                         </span>
+                        {!m.is_active && (
+                          <span style={{ fontSize: 10, color: '#94A3B8', background: '#94A3B820', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>INACTIVA</span>
+                        )}
+                        {isOpen ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
                       </button>
-
-                      {/* Detalle expandido */}
-                      {isOpen && (
-                        <div style={{ padding: '0 14px 12px', borderTop: '1px solid var(--border-color)' }}>
-                          <ModDetail m={m} />
-                        </div>
-                      )}
+                      {isOpen && <ModDetail m={m} />}
                     </div>
                   )
                 })}
               </div>
-            )}
-          </div>
-          {/* ── FIN MODIFICACIONES ─── */}
+            </Section>
+          )}
 
         </div>
       </div>

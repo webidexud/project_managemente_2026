@@ -1,4 +1,6 @@
-# backend/app/schemas/projects.py — v4.0
+# backend/app/schemas/projects.py — v4.2
+# CORRECCIÓN TRAZABILIDAD: start_date y end_date eliminados de ProjectUpdate.
+# Son fechas contractuales originales — inmutables después de la creación.
 from pydantic import BaseModel
 from typing import Optional, List, Any
 from datetime import datetime, date
@@ -78,8 +80,8 @@ class ProjectCreate(BaseModel):
     entity_contribution: Optional[Decimal] = None
     beneficiaries_count: Optional[int] = None
     subscription_date: Optional[date] = None
-    start_date: date
-    end_date: date
+    start_date: date        # ← obligatorio en creación
+    end_date: date          # ← obligatorio en creación
     ordering_official_id: int
     main_email: Optional[str] = None
     administrative_act: Optional[str] = None
@@ -93,6 +95,7 @@ class ProjectCreate(BaseModel):
 
 
 class ProjectUpdate(BaseModel):
+    # ── Campos editables ──────────────────────────────────────────────
     external_project_number: Optional[str] = None
     project_name: Optional[str] = None
     project_purpose: Optional[str] = None
@@ -110,8 +113,8 @@ class ProjectUpdate(BaseModel):
     entity_contribution: Optional[Decimal] = None
     beneficiaries_count: Optional[int] = None
     subscription_date: Optional[date] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
+    # ── start_date y end_date NO están aquí — son inmutables ─────────
+    # Las prórrogas se registran en project_modifications.new_end_date
     ordering_official_id: Optional[int] = None
     main_email: Optional[str] = None
     administrative_act: Optional[str] = None
@@ -122,91 +125,6 @@ class ProjectUpdate(BaseModel):
     minutes_date: Optional[date] = None
     minutes_number: Optional[str] = None
     supervisor_type: Optional[str] = None
-
-
-# ── Modificaciones ────────────────────────────────────────────────────
-class ModificationCreate(BaseModel):
-    modification_type: str
-    approval_date: date
-    administrative_act: Optional[str] = None
-    justification: Optional[str] = None
-    addition_value: Optional[Decimal] = None
-    extension_days: Optional[int] = None
-    new_end_date: Optional[date] = None
-    new_total_value: Optional[Decimal] = None
-    extension_period_text: Optional[str] = None
-    requires_policy_update: bool = False
-    policy_update_description: Optional[str] = None
-    payment_method_modification: Optional[str] = None
-    ordering_official_id: Optional[int] = None
-
-
-class SuspensionCreate(BaseModel):
-    suspension_start_date: date
-    suspension_end_date: date
-    planned_restart_date: date
-    contractor_justification: str
-    supervisor_justification: str
-    entity_supervisor_name: Optional[str] = None
-    entity_supervisor_id: Optional[str] = None
-
-
-class SuspensionRestartPatch(BaseModel):
-    actual_restart_date: date
-    restart_modification_id: int
-
-
-class ClauseChangeCreate(BaseModel):
-    modification_description: str
-    requires_resource_liberation: bool = False
-    cdp_to_release: Optional[str] = None
-    rp_to_release: Optional[str] = None
-    liberation_amount: Optional[Decimal] = None
-    clause_number: Optional[str] = "1"
-    clause_name: Optional[str] = "Modificación Contractual"
-    new_clause_text: Optional[str] = ""
-
-
-class AssignmentCreate(BaseModel):
-    assignment_type: str
-    assignor_name: str
-    assignor_id: str
-    assignor_id_type: Optional[str] = "CC"
-    assignee_name: str
-    assignee_id: str
-    assignee_id_type: Optional[str] = "CC"
-    assignment_date: date
-    assignment_signature_date: Optional[date] = None
-    value_to_assign: Decimal
-    value_paid_to_assignor: Optional[Decimal] = None
-    value_pending_to_assignor: Optional[Decimal] = None
-    cdp: Optional[str] = None
-    rp: Optional[str] = None
-    guarantee_modification_request: Optional[str] = None
-
-
-class LiquidationCreate(BaseModel):
-    liquidation_type: str
-    execution_percentage: Decimal
-    executed_value: Decimal
-    pending_payment_value: Optional[Decimal] = None
-    value_to_release: Optional[Decimal] = None
-    cdp: Optional[str] = None
-    cdp_value: Optional[Decimal] = None
-    rp: Optional[str] = None
-    rp_value: Optional[Decimal] = None
-    initial_contract_value: Decimal
-    final_value_with_additions: Decimal
-    resolution_number: Optional[str] = None
-    resolution_date: Optional[date] = None
-    unilateral_cause: Optional[str] = None
-    cause_analysis: Optional[str] = None
-    liquidation_date: date
-    liquidation_signature_date: Optional[date] = None
-    supervisor_liquidation_request: str
-    additions_summary: Optional[Any] = None
-    extensions_summary: Optional[Any] = None
-    suspensions_summary: Optional[Any] = None
 
 
 # ── RUP ──────────────────────────────────────────────────────────────
@@ -294,3 +212,68 @@ class SecondaryEmailOut(BaseModel):
     observations: Optional[str] = None
     is_active: bool
     model_config = {"from_attributes": True}
+
+
+# ── Modificaciones ────────────────────────────────────────────────────
+class ModificationCreate(BaseModel):
+    modification_type: str
+    approval_date: date
+    administrative_act: Optional[str] = None
+    justification: Optional[str] = None
+    addition_value: Optional[Decimal] = None
+    extension_days: Optional[int] = None
+    new_end_date: Optional[date] = None
+    new_total_value: Optional[Decimal] = None
+    extension_period_text: Optional[str] = None
+    requires_policy_update: bool = False
+    policy_update_description: Optional[str] = None
+    payment_method_modification: Optional[str] = None
+    ordering_official_id: Optional[int] = None
+
+
+class SuspensionCreate(BaseModel):
+    suspension_start_date: date
+    suspension_end_date: date
+    planned_restart_date: date
+    contractor_justification: str
+    supervisor_justification: str
+    entity_supervisor_name: Optional[str] = None
+    entity_supervisor_id: Optional[str] = None
+
+
+class SuspensionRestartPatch(BaseModel):
+    actual_restart_date: date
+    restart_modification_id: int
+
+
+class ClauseChangeCreate(BaseModel):
+    modification_description: str
+    requires_resource_liberation: bool = False
+    cdp_to_release: Optional[str] = None
+    rp_to_release: Optional[str] = None
+    liberation_amount: Optional[Decimal] = None
+
+
+class AssignmentCreate(BaseModel):
+    assignor_name: str
+    assignor_id: Optional[str] = None
+    assignor_id_type: Optional[str] = None
+    assignee_name: str
+    assignee_id: Optional[str] = None
+    assignee_id_type: Optional[str] = None
+    assignment_date: Optional[date] = None
+    assignment_signature_date: Optional[date] = None
+    value_to_assign: Optional[Decimal] = None
+    value_paid_to_assignor: Optional[Decimal] = None
+    value_pending_to_assignor: Optional[Decimal] = None
+    cdp: Optional[str] = None
+    rp: Optional[str] = None
+    guarantee_value: Optional[Decimal] = None
+
+
+class LiquidationCreate(BaseModel):
+    liquidation_date: Optional[date] = None
+    execution_percentage: Optional[Decimal] = None
+    supervisor_liquidation_request: Optional[str] = None
+    entity_liquidation_request: Optional[str] = None
+    observations: Optional[str] = None

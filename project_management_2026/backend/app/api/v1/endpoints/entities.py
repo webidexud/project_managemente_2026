@@ -19,7 +19,7 @@ def list(active_only: bool = False, db: Session = Depends(get_db)):
     q = db.query(Entity)
     if active_only: q = q.filter(Entity.is_active == True)
     types = get_types(db)
-    return [enrich(r, types) for r in q.order_by(Entity.entity_name).limit(500).all()]
+    return [enrich(r, types) for r in q.order_by(Entity.entity_name).all()]
 
 @router.post("/", response_model=EntityOut, status_code=201)
 def create(data: EntityCreate, db: Session = Depends(get_db)):

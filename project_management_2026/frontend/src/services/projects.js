@@ -1,15 +1,15 @@
-// frontend/src/services/projects.js — v4.2
+// frontend/src/services/projects.js — v5.0
+// CAMBIO: Eliminado getNextNumber (el endpoint /next-number/{year} ya no existe)
 import api from './api'
 
 export const projectsService = {
-  list:          (params = {}) => api.get('/projects/', { params }),
-  get:           (id)          => api.get(`/projects/${id}`),
-  getNextNumber: (year)        => api.get(`/projects/next-number/${year}`),
-  getAdditions:  (id)          => api.get(`/projects/${id}/additions`),
-  create:        (data)        => api.post('/projects/', data),
-  update:        (id, data)    => api.put(`/projects/${id}`, data),
-  toggle:        (id)          => api.patch(`/projects/${id}/toggle`),
-  listTypes:     ()            => api.get('/projects/types/all'),
+  list:         (params = {}) => api.get('/projects/', { params }),
+  get:          (id)          => api.get(`/projects/${id}`),
+  getAdditions: (id)          => api.get(`/projects/${id}/additions`),
+  create:       (data)        => api.post('/projects/', data),
+  update:       (id, data)    => api.put(`/projects/${id}`, data),
+  toggle:       (id)          => api.patch(`/projects/${id}/toggle`),
+  listTypes:    ()            => api.get('/projects/types/all'),
 }
 
 export const modificationsService = {

@@ -1,6 +1,6 @@
-# backend/app/schemas/projects.py — v4.2
-# CORRECCIÓN TRAZABILIDAD: start_date y end_date eliminados de ProjectUpdate.
-# Son fechas contractuales originales — inmutables después de la creación.
+# backend/app/schemas/projects.py — v5.0
+# CAMBIO: Eliminado internal_project_number de ProjectOut y ProjectCreate.
+#         El proyecto se identifica únicamente por project_id.
 from pydantic import BaseModel
 from typing import Optional, List, Any
 from datetime import datetime, date
@@ -17,7 +17,7 @@ class ProjectTypeOut(BaseModel):
 class ProjectOut(BaseModel):
     project_id: int
     project_year: int
-    internal_project_number: int
+    # internal_project_number ELIMINADO
     external_project_number: Optional[str] = None
     project_name: str
     project_purpose: str
@@ -44,7 +44,7 @@ class ProjectOut(BaseModel):
     subscription_date: Optional[date] = None
     start_date: date
     end_date: date
-    ordering_official_id: int
+    ordering_official_id: Optional[int] = None
     official_name: Optional[str] = None
     main_email: Optional[str] = None
     administrative_act: Optional[str] = None
@@ -62,7 +62,7 @@ class ProjectOut(BaseModel):
 
 class ProjectCreate(BaseModel):
     project_year: int
-    internal_project_number: Optional[int] = None
+    # internal_project_number ELIMINADO — ya no existe en la tabla
     external_project_number: Optional[str] = None
     project_name: str
     project_purpose: str
@@ -80,8 +80,8 @@ class ProjectCreate(BaseModel):
     entity_contribution: Optional[Decimal] = None
     beneficiaries_count: Optional[int] = None
     subscription_date: Optional[date] = None
-    start_date: date        # ← obligatorio en creación
-    end_date: date          # ← obligatorio en creación
+    start_date: date
+    end_date: date
     ordering_official_id: int
     main_email: Optional[str] = None
     administrative_act: Optional[str] = None
@@ -214,7 +214,7 @@ class SecondaryEmailOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ── Modificaciones ────────────────────────────────────────────────────
+# ── Modificaciones ───────────────────────────────────────────────────
 class ModificationCreate(BaseModel):
     modification_type: str
     approval_date: date

@@ -1,3 +1,10 @@
+# backend/app/api/v1/endpoints/projects.py — v4.0
+# CAMBIO: Eliminada la lógica de internal_project_number.
+#         - Removida función next_internal_number()
+#         - Removido endpoint GET /next-number/{year}
+#         - create_project ya no asigna internal_project_number
+#         - update_project ya no hace pop('internal_project_number')
+#         - list_projects ordena por project_id desc (en lugar de internal_project_number)
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -37,13 +44,6 @@ def get_ctx(db):
     }
 
 
-def next_internal_number(db: Session, year: int) -> int:
-    """Calcula el siguiente número interno consecutivo para el año dado."""
-    max_num = db.query(func.max(Project.internal_project_number))\
-        .filter(Project.project_year == year).scalar()
-    return (max_num or 0) + 1
-
-
 @router.get("/", response_model=List[ProjectOut])
 def list_projects(
     year: Optional[int] = None,
@@ -53,15 +53,10 @@ def list_projects(
     q = db.query(Project)
     if active_only: q = q.filter(Project.is_active == True)
     if year:        q = q.filter(Project.project_year == year)
-    rows = q.order_by(Project.project_year.desc(), Project.internal_project_number.desc()).all()
+    # Ordenar por año desc, luego project_id desc (orden natural de creación)
+    rows = q.order_by(Project.project_year.desc(), Project.project_id.desc()).all()
     ctx = get_ctx(db)
     return [enrich(p, ctx) for p in rows]
-
-
-@router.get("/next-number/{year}")
-def get_next_number(year: int, db: Session = Depends(get_db)):
-    """Devuelve el siguiente número interno disponible para el año."""
-    return {"year": year, "next_number": next_internal_number(db, year)}
 
 
 @router.get("/{id}", response_model=ProjectOut)
@@ -73,9 +68,7 @@ def get_project(id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=ProjectOut, status_code=201)
 def create_project(data: ProjectCreate, db: Session = Depends(get_db)):
-    # Auto-generar número interno
-    internal_num = next_internal_number(db, data.project_year)
-    obj = Project(**data.model_dump(), internal_project_number=internal_num)
+    obj = Project(**data.model_dump())
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -87,10 +80,9 @@ def update_project(id: int, data: ProjectUpdate, db: Session = Depends(get_db)):
     from sqlalchemy.exc import DataError, IntegrityError
     obj = db.query(Project).filter(Project.project_id == id).first()
     if not obj: raise HTTPException(404, "Proyecto no encontrado")
-    # Nunca permitir cambiar las claves de BD
+    # Nunca permitir cambiar la clave de BD ni el año
     safe_data = data.model_dump(exclude_unset=True)
     safe_data.pop('project_year', None)
-    safe_data.pop('internal_project_number', None)
     for k, v in safe_data.items():
         setattr(obj, k, v)
     try:
@@ -126,16 +118,10 @@ def list_project_types(db: Session = Depends(get_db)):
 @router.get("/{id}/additions")
 def get_project_additions(id: int, db: Session = Depends(get_db)):
     """Suma de addition_value de modificaciones tipo ADDITION o BOTH activas del proyecto."""
-    from sqlalchemy import func as sqlfunc
-    result = db.execute(
-        __import__('sqlalchemy').text("""
-            SELECT COALESCE(SUM(addition_value), 0) as total_additions
-            FROM project_modifications
-            WHERE project_id = :pid
-              AND modification_type IN ('ADDITION','BOTH')
-              AND is_active = true
-              AND addition_value IS NOT NULL
-        """),
-        {"pid": id}
-    ).fetchone()
-    return {"project_id": id, "total_additions": float(result[0])}
+    from app.models.project_modification import ProjectModification
+    total = db.query(func.sum(ProjectModification.addition_value)).filter(
+        ProjectModification.project_id == id,
+        ProjectModification.modification_type.in_(['ADDITION', 'BOTH']),
+        ProjectModification.is_active == True,
+    ).scalar()
+    return {"project_id": id, "total_additions": float(total or 0)}

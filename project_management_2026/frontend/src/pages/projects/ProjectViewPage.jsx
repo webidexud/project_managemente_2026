@@ -483,7 +483,7 @@ export default function ProjectViewPage() {
           <Section icon={FileText} color="#0F2952" title="Identificación">
             <Grid cols={3}>
               <Field label="Año" value={p.project_year} mono />
-              <Field label="N° interno" value={`#${p.internal_project_number}`} mono />
+              <Field label="ID del proyecto" value={`#${p.project_id}`} mono />
               <Field label="N° externo" value={p.external_project_number} mono />
             </Grid>
             <Grid cols={1}>

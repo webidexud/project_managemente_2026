@@ -177,7 +177,7 @@ export default function ProjectsPage() {
                       {/* Año / # */}
                       <td className="table-cell" style={{ whiteSpace: 'nowrap' }}>
                         <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--text-muted)' }}>{p.project_year}</div>
-                        <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>#{p.internal_project_number}</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>#{p.project_id}</div>
                       </td>
 
                       {/* Proyecto */}

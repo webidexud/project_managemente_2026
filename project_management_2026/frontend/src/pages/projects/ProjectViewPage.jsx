@@ -474,7 +474,7 @@ export default function ProjectViewPage() {
           </button>
         </div>
       </div>
-
+ 
       {/* ── Contenido ── */}
       <div style={{ flex: 1, overflowY: 'auto', background: 'var(--bg-primary)', padding: '28px' }}>
         <div style={{ maxWidth: 900, margin: '0 auto' }}>

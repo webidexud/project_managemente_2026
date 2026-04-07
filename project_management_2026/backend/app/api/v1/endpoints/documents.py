@@ -30,7 +30,8 @@ from app.models.project_document import ProjectDocument, ProjectDocumentType
 router = APIRouter(tags=["Documentos"])
 
 # Directorio donde se guardan los archivos físicos
-UPLOAD_DIR = "/app/uploads/documents"
+# Lee desde variable de entorno; por defecto usa la carpeta interna del contenedor
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/app/uploads/documents")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ── Nomenclatura → tipo de documento ─────────────────────────────────

@@ -14,8 +14,10 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - ALGORITHM=${ALGORITHM}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
+      - UPLOAD_DIR=${UPLOAD_DIR}
     volumes:
       - ./backend/app:/app/app
+      - ./documentos:/docs_storage
     networks:
       - siexud_net
     depends_on: []

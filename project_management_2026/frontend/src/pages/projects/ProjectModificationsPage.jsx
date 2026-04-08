@@ -1,7 +1,9 @@
-// frontend/src/pages/projects/ProjectModificationsPage.jsx — v4.1
-// + Detalle expandible por modificación (todos los campos)
-// + Botón editar → abre ModificationFormModal en modo edición
-// + Prórroga acumulativa: el modal recibe project.end_date (ya actualizado en BD)
+// frontend/src/pages/projects/ProjectModificationsPage.jsx — v4.2
+// CORRECCIONES:
+//  - Título: usa external_project_number o project_id (no internal_project_number que fue eliminado)
+//  - Fecha fin actual: calcula la última new_end_date activa de prórrogas (acumulativa)
+//  - Valor total: muestra valor base + adiciones
+//  - N° modificación: quitado el campo "Automático" del encabezado
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
@@ -32,7 +34,6 @@ function fmtPesos(v) {
 }
 function fmtDate(d) { return d ? String(d).split('T')[0] : '—' }
 
-/* ── Badge de tipo ─────────────────────────────────────────────── */
 function TypeBadge({ type }) {
   const m = TYPE_META[type] || { label: type, color: '#94A3B8' }
   return (
@@ -47,7 +48,6 @@ function TypeBadge({ type }) {
   )
 }
 
-/* ── Campo de detalle ──────────────────────────────────────────── */
 function DField({ label, value, mono, color }) {
   if (!value && value !== 0 && value !== false) return null
   return (
@@ -85,14 +85,9 @@ function DSection({ title, color, icon: Icon, children }) {
   )
 }
 
-/* ── Panel de detalle expandido ────────────────────────────────── */
 function ModDetail({ m }) {
   return (
-    <div style={{
-      marginTop: 12, padding: '14px 16px', borderRadius: 10,
-      background: 'var(--bg-primary)', border: '1px solid var(--border-color)',
-    }}>
-      {/* Datos generales */}
+    <div style={{ marginTop: 12, padding: '14px 16px', borderRadius: 10, background: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>
       <DSection title="Datos Generales" color="#F59E0B" icon={FileText}>
         <DGrid cols={3}>
           <DField label="Acto administrativo" value={m.administrative_act} />
@@ -102,7 +97,6 @@ function ModDetail({ m }) {
         {m.justification && <DField label="Justificación" value={m.justification} />}
       </DSection>
 
-      {/* Adición */}
       {(m.addition_value || m.new_total_value) && (
         <DSection title="Adición Presupuestal" color="#10B981" icon={DollarSign}>
           <DGrid cols={2}>
@@ -114,7 +108,6 @@ function ModDetail({ m }) {
         </DSection>
       )}
 
-      {/* Prórroga */}
       {m.new_end_date && (
         <DSection title="Prórroga de Plazo" color="#0EA5E9" icon={Clock}>
           <DGrid cols={3}>
@@ -125,7 +118,6 @@ function ModDetail({ m }) {
         </DSection>
       )}
 
-      {/* Suspensión */}
       {m.suspension && (
         <DSection title="Suspensión del Contrato" color="#EF4444" icon={Clock}>
           <DGrid cols={3}>
@@ -142,18 +134,16 @@ function ModDetail({ m }) {
         </DSection>
       )}
 
-      {/* Reinicio */}
       {m.restart && (
         <DSection title="Reinicio de Contrato" color="#06B6D4" icon={Clock}>
           <DGrid cols={2}>
-            <DField label="Suspensión vinculada #" value={`Suspensión ID ${m.restart.suspension_id}`} />
+            <DField label="Suspensión vinculada" value={`Suspensión ID ${m.restart.suspension_id}`} />
             <DField label="Fecha real de reinicio" value={fmtDate(m.restart.actual_restart_date)} color="#06B6D4" />
           </DGrid>
           <DField label="Período suspendido" value={`${fmtDate(m.restart.suspension_start_date)} → ${fmtDate(m.restart.suspension_end_date)}`} />
         </DSection>
       )}
 
-      {/* Modificación Contractual */}
       {m.clause && (
         <DSection title="Modificación Contractual" color="#F59E0B" icon={FileText}>
           <DField label="Descripción de la modificación" value={m.clause.modification_description} />
@@ -167,7 +157,6 @@ function ModDetail({ m }) {
         </DSection>
       )}
 
-      {/* Cesión */}
       {m.assignment && (
         <DSection title="Cesión del Contrato" color="#8B5CF6" icon={Users}>
           <DGrid cols={3}>
@@ -193,7 +182,6 @@ function ModDetail({ m }) {
         </DSection>
       )}
 
-      {/* Liquidación */}
       {m.liquidation && (
         <DSection title="Liquidación del Contrato" color="#64748B" icon={Shield}>
           <DGrid cols={3}>
@@ -246,8 +234,8 @@ export default function ProjectModificationsPage() {
   const [suspensions, setSuspensions] = useState([])
   const [loading,     setLoading]     = useState(true)
   const [modalOpen,   setModalOpen]   = useState(false)
-  const [editMod,     setEditMod]     = useState(null)   // modificación a editar
-  const [expanded,    setExpanded]    = useState({})     // { modId: bool }
+  const [editMod,     setEditMod]     = useState(null)
+  const [expanded,    setExpanded]    = useState({})
 
   const loadProject = useCallback(async () => {
     try { const r = await projectsService.get(id); setProject(r.data) }
@@ -273,9 +261,7 @@ export default function ProjectModificationsPage() {
   }, [id])
 
   useEffect(() => {
-    loadProject()
-    loadMods()
-    loadSuspensions()
+    loadProject(); loadMods(); loadSuspensions()
   }, [loadProject, loadMods, loadSuspensions])
 
   const handleToggle = async (m) => {
@@ -291,8 +277,7 @@ export default function ProjectModificationsPage() {
 
   const afterSave = () => {
     setModalOpen(false); setEditMod(null)
-    loadProject()   // recarga end_date actualizada para próxima prórroga
-    loadMods(); loadSuspensions()
+    loadProject(); loadMods(); loadSuspensions()
   }
 
   const toggleExpand = (modId) =>
@@ -300,20 +285,36 @@ export default function ProjectModificationsPage() {
 
   const prevMods = mods.filter(m => m.is_active)
 
-  // Calcular totales para la cabecera
+  // Total adiciones activas
   const totalAdiciones = prevMods
     .filter(m => ['ADDITION','BOTH'].includes(m.modification_type))
     .reduce((s, m) => s + (parseFloat(m.addition_value) || 0), 0)
+
+  // ✅ Fecha fin VIGENTE: última new_end_date de prórrogas activas (acumulativa)
+  const fechaFinVigente = (() => {
+    const prorrogas = prevMods
+      .filter(m => ['EXTENSION','BOTH'].includes(m.modification_type) && m.new_end_date)
+      .sort((a, b) => a.modification_number - b.modification_number)
+    return prorrogas.length > 0
+      ? prorrogas[prorrogas.length - 1].new_end_date
+      : project?.end_date
+  })()
+
+  // ✅ Valor total vigente = valor base + adiciones
+  const valorVigente = project
+    ? parseFloat(project.project_value || 0) + totalAdiciones
+    : 0
+
+  // ✅ Identificador del proyecto: external_project_number o project_id
+  const proyectoLabel = project
+    ? `${project.project_year}${project.external_project_number ? ` · ${project.external_project_number}` : ` #${project.project_id}`}`
+    : '…'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
 
       {/* ── Topbar ── */}
-      <div style={{
-        background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)',
-        padding: '10px 24px', display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', flexShrink: 0,
-      }}>
+      <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)', padding: '10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={() => navigate(`/projects/${id}/view`)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--border-color)', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13, fontFamily: 'inherit', padding: '7px 12px', borderRadius: 8 }}>
@@ -326,7 +327,7 @@ export default function ProjectModificationsPage() {
             </div>
             <div>
               <h1 style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                Modificaciones · {project ? `${project.project_year} #${project.internal_project_number}` : '…'}
+                Modificaciones · {proyectoLabel}
               </h1>
               <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
                 {project?.project_name?.substring(0, 70)}
@@ -339,146 +340,96 @@ export default function ProjectModificationsPage() {
             </div>
           </div>
         </div>
-        <button onClick={handleNew} className="btn-primary"
-          style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13 }}>
+        <button onClick={handleNew} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13 }}>
           <Plus size={15} /> Nueva Modificación
         </button>
       </div>
 
-      {/* ── Resumen si hay mods ── */}
-      {!loading && mods.length > 0 && project && (
-        <div style={{
-          background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)',
-          padding: '10px 24px', display: 'flex', gap: 24,
-        }}>
+      {/* ── Resumen financiero y temporal ── */}
+      {!loading && project && (
+        <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)', padding: '10px 24px', display: 'flex', gap: 28, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <DollarSign size={14} color="#10B981" />
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Total adiciones: <strong style={{ color: '#10B981', fontFamily: 'monospace' }}>{fmtPesos(totalAdiciones)}</strong>
+            </span>
+          </div>
           {totalAdiciones > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <DollarSign size={14} color="#10B981" />
+              <DollarSign size={14} color="#0F2952" />
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                Total adiciones: <strong style={{ color: '#10B981', fontFamily: 'monospace' }}>{fmtPesos(totalAdiciones)}</strong>
+                Valor vigente: <strong style={{ color: '#0F2952', fontFamily: 'monospace' }}>{fmtPesos(valorVigente)}</strong>
               </span>
             </div>
           )}
-          {project.end_date && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Clock size={14} color="#0EA5E9" />
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                Fecha fin actual: <strong style={{ color: '#0EA5E9' }}>{fmtDate(project.end_date)}</strong>
-              </span>
-            </div>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Clock size={14} color="#0EA5E9" />
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Fecha fin actual: <strong style={{ color: '#0EA5E9' }}>{fmtDate(fechaFinVigente)}</strong>
+            </span>
+          </div>
         </div>
       )}
 
-      {/* ── Lista ── */}
+      {/* ── Lista de modificaciones ── */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', background: 'var(--bg-primary)' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)', fontSize: 14 }}>
             Cargando modificaciones…
           </div>
         ) : mods.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 60, background: 'var(--bg-card)', borderRadius: 16, border: '1px dashed var(--border-color)' }}>
-            <GitBranch size={40} color="var(--text-muted)" style={{ marginBottom: 14, opacity: .4 }} />
-            <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-muted)' }}>Sin modificaciones registradas</p>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>Haz clic en "Nueva Modificación" para comenzar</p>
+          <div style={{ textAlign: 'center', padding: 60 }}>
+            <GitBranch size={36} color="var(--text-muted)" style={{ marginBottom: 14, opacity: 0.4 }} />
+            <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>No hay modificaciones registradas</p>
+            <button onClick={handleNew} className="btn-primary" style={{ marginTop: 16, display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13 }}>
+              <Plus size={15} /> Agregar primera modificación
+            </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 900, margin: '0 auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {mods.map(m => {
               const meta    = TYPE_META[m.modification_type] || { label: m.modification_type, color: '#94A3B8' }
-              const isOpen  = !!expanded[m.modification_id]
-
+              const isOpen  = expanded[m.modification_id]
               return (
-                <div key={m.modification_id} style={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-color)',
-                  borderLeft: `4px solid ${m.is_active ? meta.color : '#94A3B8'}`,
-                  borderRadius: 12,
-                  opacity: m.is_active ? 1 : 0.6,
-                }}>
-                  {/* Cabecera de la card */}
-                  <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)' }}>
-                          Modificación #{m.modification_number}
-                        </span>
-                        <TypeBadge type={m.modification_type} />
-                        {!m.is_active && (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', background: '#94A3B818', padding: '2px 8px', borderRadius: 20 }}>
-                            INACTIVA
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Resumen inline */}
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 20px', fontSize: 12 }}>
-                        {m.approval_date && (
-                          <span style={{ color: 'var(--text-muted)' }}>
-                            📅 <strong>Aprobación:</strong> {fmtDate(m.approval_date)}
-                          </span>
-                        )}
-                        {m.administrative_act && (
-                          <span style={{ color: 'var(--text-muted)' }}>
-                            📄 {m.administrative_act}
-                          </span>
-                        )}
-                        {m.addition_value && (
-                          <span style={{ color: '#10B981', fontWeight: 700, fontFamily: 'monospace' }}>
-                            + {fmtPesos(m.addition_value)}
-                          </span>
-                        )}
-                        {m.new_end_date && (
-                          <span style={{ color: '#0EA5E9', fontWeight: 600 }}>
-                            🕐 {fmtDate(m.new_end_date)}
-                            {m.extension_period_text && <span style={{ fontWeight: 400 }}> ({m.extension_period_text})</span>}
-                          </span>
-                        )}
-                        {m.suspension && (
-                          <span style={{ color: '#EF4444' }}>
-                            ⏸ {fmtDate(m.suspension.suspension_start_date)} → {fmtDate(m.suspension.suspension_end_date)}
-                          </span>
-                        )}
-                      </div>
-
-                      {m.justification && !isOpen && (
-                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5, fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                          {m.justification}
-                        </p>
-                      )}
+                <div key={m.modification_id} style={{ background: 'var(--bg-card)', border: `1px solid ${m.is_active ? 'var(--border-color)' : 'rgba(100,116,139,0.2)'}`, borderRadius: 12, overflow: 'hidden', opacity: m.is_active ? 1 : 0.6 }}>
+                  {/* Cabecera */}
+                  <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: `${meta.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: meta.color }}>#{m.modification_number}</span>
                     </div>
-
-                    {/* Acciones */}
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
-                      {/* Expandir/colapsar */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <TypeBadge type={m.modification_type} />
+                        {m.administrative_act && (
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{m.administrative_act}</span>
+                        )}
+                        {!m.is_active && (
+                          <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: 'rgba(100,116,139,0.1)', color: '#94A3B8', fontWeight: 700 }}>INACTIVA</span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 14, marginTop: 4, flexWrap: 'wrap' }}>
+                        {m.approval_date && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>📅 {fmtDate(m.approval_date)}</span>}
+                        {m.addition_value && <span style={{ fontSize: 11, color: '#10B981', fontFamily: 'monospace', fontWeight: 600 }}>+{fmtPesos(m.addition_value)}</span>}
+                        {m.new_end_date && <span style={{ fontSize: 11, color: '#0EA5E9' }}>→ {fmtDate(m.new_end_date)}{m.extension_days ? ` (+${m.extension_days}d)` : ''}</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => handleEdit(m)} title="Editar"
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border-color)', background: 'none', color: '#0EA5E9', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', fontWeight: 600 }}>
+                        <Pencil size={12} /> Editar
+                      </button>
+                      <button onClick={() => handleToggle(m)} title={m.is_active ? 'Deshabilitar' : 'Habilitar'}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border-color)', background: 'none', color: m.is_active ? '#EF4444' : '#10B981', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', fontWeight: 600 }}>
+                        {m.is_active ? <><PowerOff size={12}/> Deshabilitar</> : <><Power size={12}/> Habilitar</>}
+                      </button>
                       <button onClick={() => toggleExpand(m.modification_id)}
-                        title={isOpen ? 'Colapsar' : 'Ver detalle'}
-                        style={{ width: 30, height: 30, borderRadius: 7, border: '1px solid var(--border-color)', background: isOpen ? 'var(--bg-hover)' : 'none', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'inherit' }}>
-                        {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                      </button>
-
-                      {/* Editar */}
-                      <button onClick={() => handleEdit(m)}
-                        title="Editar modificación"
-                        style={{ width: 30, height: 30, borderRadius: 7, border: '1px solid #0EA5E933', background: '#0EA5E911', color: '#0EA5E9', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'inherit' }}>
-                        <Pencil size={13} />
-                      </button>
-
-                      {/* Toggle */}
-                      <button onClick={() => handleToggle(m)}
-                        title={m.is_active ? 'Deshabilitar' : 'Habilitar'}
-                        style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${m.is_active ? '#EF444433' : '#10B98133'}`, background: m.is_active ? '#EF444411' : '#10B98111', color: m.is_active ? '#EF4444' : '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'inherit' }}>
-                        {m.is_active ? <PowerOff size={13} /> : <Power size={13} />}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border-color)', background: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>
+                        {isOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                        {isOpen ? 'Ocultar' : 'Detalle'}
                       </button>
                     </div>
                   </div>
-
-                  {/* Detalle expandido */}
-                  {isOpen && (
-                    <div style={{ borderTop: '1px solid var(--border-color)', padding: '0 16px 14px' }}>
-                      <ModDetail m={m} />
-                    </div>
-                  )}
+                  {isOpen && <ModDetail m={m} />}
                 </div>
               )
             })}
@@ -486,16 +437,15 @@ export default function ProjectModificationsPage() {
         )}
       </div>
 
-      {/* ── Modal nueva / editar modificación ── */}
-      {modalOpen && project && (
+      {/* ── Modal ── */}
+      {modalOpen && (
         <ModificationFormModal
-          isOpen={modalOpen}
-          onClose={() => { setModalOpen(false); setEditMod(null) }}
           project={project}
+          editData={editMod}
           prevMods={prevMods}
           suspensions={suspensions}
-          editData={editMod}
           onSaved={afterSave}
+          onClose={() => { setModalOpen(false); setEditMod(null) }}
         />
       )}
     </div>

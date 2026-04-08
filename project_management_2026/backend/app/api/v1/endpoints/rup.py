@@ -1,6 +1,5 @@
-# backend/app/api/v1/endpoints/rup.py — v2.0
-# CAMBIO: ProjectRupCode ahora usa project_id como FK directa.
-#         Eliminadas referencias a project_year + internal_project_number en assign y list.
+# backend/app/api/v1/endpoints/rup.py — v3.0
+# CAMBIO: Agregado endpoint GET /rup/products?class_code=XXXXXX
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -51,6 +50,20 @@ def list_classes(family_code: Optional[str] = None, db: Session = Depends(get_db
     return [{"class_code": r.class_code, "class_name": r.class_name} for r in rows]
 
 
+# ── NUEVO: productos por clase ────────────────────────────────────
+@router.get("/products", response_model=List[RupCodeOut])
+def list_products(class_code: Optional[str] = None, db: Session = Depends(get_db)):
+    """Devuelve todos los productos (códigos RUP de 8 dígitos) de una clase."""
+    q = db.query(RupCode).filter(
+        RupCode.is_active == True,
+        RupCode.product_code != None,
+    )
+    if class_code:
+        q = q.filter(RupCode.class_code == class_code)
+    rows = q.order_by(RupCode.product_name).all()
+    return rows
+
+
 @router.get("/project/{project_id}", response_model=List[ProjectRupCodeOut])
 def get_project_rup(project_id: int, db: Session = Depends(get_db)):
     rows = db.query(ProjectRupCode, RupCode)\
@@ -83,7 +96,6 @@ def assign_rup(project_id: int, body: ProjectRupBulk, db: Session = Depends(get_
     if not proj:
         return {"ok": False, "msg": "Proyecto no encontrado"}
 
-    # Desactivar los existentes para este project_id
     db.query(ProjectRupCode).filter(
         ProjectRupCode.project_id == project_id,
     ).update({"is_active": False})

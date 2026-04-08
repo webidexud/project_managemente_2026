@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   FileText, Settings, DollarSign, Calendar, Users,
-  Tag, Link2, Save, ArrowLeft, CheckCircle2, AlertCircle, Mail, Plus, Trash2, Phone, User
+  Tag, Link2, Save, ArrowLeft, CheckCircle2, AlertCircle,
+  Mail, Plus, Trash2, AlertTriangle
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { projectsService, rupService, emailsService } from '../../services/projects'
@@ -17,18 +18,17 @@ import RupSelector from '../../components/projects/RupSelector'
 const LIMITS = {
   external_project_number:  20,
   project_name:             800,
-  project_purpose:          2000,   // text — límite razonable UI
+  project_purpose:          2000,
   accounting_code:          50,
   main_email:               200,
   administrative_act:       50,
   secop_link:               1000,
-  observations:             4000,   // text
-  rup_codes_general_observations: 4000,  // text
+  observations:             4000,
+  rup_codes_general_observations: 4000,
   minutes_number:           50,
   session_type:             50,
 }
 
-/* ─── Componente contador de caracteres ──────────────────────────── */
 function CharCount({ value, max }) {
   const len  = (value || '').length
   const pct  = len / max
@@ -40,7 +40,6 @@ function CharCount({ value, max }) {
   )
 }
 
-/* ─── Input con contador ─────────────────────────────────────────── */
 function TxtInp({ value, onChange, max, placeholder, type = 'text', disabled, style }) {
   return (
     <div>
@@ -56,7 +55,6 @@ function TxtInp({ value, onChange, max, placeholder, type = 'text', disabled, st
   )
 }
 
-/* ─── Textarea con contador ──────────────────────────────────────── */
 function TxtArea({ value, onChange, max, rows = 3, placeholder }) {
   return (
     <div>
@@ -72,34 +70,19 @@ function TxtArea({ value, onChange, max, rows = 3, placeholder }) {
   )
 }
 
-/* ─── Input numérico con formato miles ───────────────────────────── */
 const fmtNum = (v) => {
   if (v === '' || v === null || v === undefined) return ''
   const num = parseFloat(coNum(String(v)))
   if (isNaN(num)) return ''
   return num.toLocaleString('es-CO', { maximumFractionDigits: 2 })
 }
-// coNum: convierte string a número sea cual sea el formato
-// Soporta: formato colombiano "1.234.567,89" y decimal inglés "1234567.89"
 function coNum(s) {
   s = String(s).trim()
-  // Si tiene coma Y punto: determinar cuál es decimal por posición
-  if (s.includes('.') && s.includes(',')) {
-    // Formato colombiano: 1.234,56 → quitar puntos, cambiar coma a punto
-    return s.replace(/\./g, '').replace(',', '.')
-  }
-  // Solo coma: puede ser decimal colombiano "12,50" → "12.50"
-  if (s.includes(',') && !s.includes('.')) {
-    return s.replace(',', '.')
-  }
-  // Solo punto: puede ser miles "1.200" o decimal "12.50"
-  // Si el punto está seguido de exactamente 3 dígitos al final → es separador de miles
+  if (s.includes('.') && s.includes(',')) return s.replace(/\./g, '').replace(',', '.')
+  if (s.includes(',') && !s.includes('.')) return s.replace(',', '.')
   if (s.includes('.')) {
     const afterDot = s.split('.').pop()
-    if (afterDot.length === 3 && !isNaN(afterDot)) {
-      return s.replace(/\./g, '') // quitar punto de miles
-    }
-    // sino: es punto decimal inglés → dejarlo tal cual
+    if (afterDot.length === 3 && !isNaN(afterDot)) return s.replace(/\./g, '')
     return s
   }
   return s
@@ -127,7 +110,7 @@ function MoneyInput({ value, onChange, placeholder, readOnly }) {
   )
 }
 
-/* ─── Secciones (RUP antes de Adicional) ─────────────────────────── */
+/* ─── Secciones ──────────────────────────────────────────────────── */
 const SECTIONS = [
   { id: 'identificacion', label: 'Identificación',  icon: FileText,   required: ['project_name','project_purpose','project_year'] },
   { id: 'clasificacion',  label: 'Clasificación',   icon: Settings,   required: ['project_status_id','project_type_id','financing_type_id','execution_modality_id'] },
@@ -155,27 +138,109 @@ const EMPTY = {
   rup_codes_general_observations: '', session_type: '', minutes_date: '', minutes_number: '',
 }
 
+/* ─── Modal de confirmación de creación ──────────────────────────── */
+function ConfirmCreateModal({ form, cats, onConfirm, onCancel, saving }) {
+  const entity = cats.entities.find(e => String(e.entity_id) === String(form.entity_id))
+  const total  = parseNum(form.project_value)
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 99999,
+      background: 'rgba(0,0,0,0.55)', display: 'flex',
+      alignItems: 'center', justifyContent: 'center', padding: 24,
+    }}>
+      <div style={{
+        background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 500,
+        border: '1px solid var(--border-color)', boxShadow: '0 25px 60px rgba(0,0,0,0.35)',
+        overflow: 'hidden',
+      }}>
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg,#0F2952,#1E3A6E)', padding: '22px 28px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <AlertTriangle size={22} color="#F59E0B"/>
+            </div>
+            <div>
+              <h2 style={{ fontSize: 17, fontWeight: 800, color: '#fff', margin: 0 }}>¿Crear este proyecto?</h2>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>Verifica los datos antes de confirmar</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Datos del proyecto */}
+        <div style={{ padding: '22px 28px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Row label="Nombre del proyecto" value={form.project_name} highlight />
+            <Row label="Año" value={form.project_year} />
+            <Row label="N° externo" value={form.external_project_number || '—'} />
+            <Row label="Entidad contratante" value={entity?.entity_name || '—'} />
+            <Row label="Valor total del proyecto" value={`$ ${fmtNum(total)}`} money />
+          </div>
+
+          <div style={{ marginTop: 20, padding: '12px 14px', borderRadius: 10, background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.25)', fontSize: 12, color: '#92400E' }}>
+            ⚠️ Una vez creado, el año y número del proyecto no podrán modificarse.
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+            <button onClick={onCancel} style={{
+              flex: 1, padding: '11px', borderRadius: 9, border: '1px solid var(--border-color)',
+              background: 'var(--bg-secondary)', color: 'var(--text-secondary)',
+              fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+              Cancelar
+            </button>
+            <button onClick={onConfirm} disabled={saving} style={{
+              flex: 1, padding: '11px', borderRadius: 9, border: 'none',
+              background: 'linear-gradient(135deg,#B91C3C,#E11D48)',
+              color: '#fff', fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit', opacity: saving ? 0.7 : 1,
+            }}>
+              {saving ? 'Creando...' : '✓ Sí, crear proyecto'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Row({ label, value, highlight, money }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, borderBottom: '1px solid var(--border-color)', paddingBottom: 10 }}>
+      <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>{label}</span>
+      <span style={{
+        fontSize: 13, fontWeight: highlight || money ? 700 : 500,
+        color: money ? '#10B981' : highlight ? 'var(--text-primary)' : 'var(--text-secondary)',
+        fontFamily: money ? 'monospace' : 'inherit', textAlign: 'right',
+        wordBreak: 'break-word', maxWidth: '65%',
+      }}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
 /* ─── Página ──────────────────────────────────────────────────────── */
 export default function ProjectFormPage() {
   const navigate = useNavigate()
   const { id }   = useParams()
   const isEdit   = Boolean(id)
 
-  const [section,  setSection]  = useState('identificacion')
-  const [saving,   setSaving]   = useState(false)
-  const [loading,  setLoading]  = useState(isEdit)
-  const [form,     setForm]     = useState(EMPTY)
-  const [rupCodes, setRupCodes] = useState([])
-  const [nextNum,  setNextNum]  = useState(null)  // próximo número interno
-  const [emails,   setEmails]   = useState([])   // correos secundarios
-  const [emailForm, setEmailForm] = useState({ email:'', contact_type:'', contact_name:'', contact_position:'', contact_phone:'' })
-  const [emailErr,  setEmailErr]  = useState('')
+  const [section,     setSection]     = useState('identificacion')
+  const [visited,     setVisited]     = useState(new Set(['identificacion']))
+  const [saving,      setSaving]      = useState(false)
+  const [loading,     setLoading]     = useState(isEdit)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [form,        setForm]        = useState(EMPTY)
+  const [rupCodes,    setRupCodes]    = useState([])
+  const [emails,      setEmails]      = useState([])
+  const [emailForm,   setEmailForm]   = useState({ email:'', contact_type:'', contact_name:'', contact_position:'', contact_phone:'' })
+  const [emailErr,    setEmailErr]    = useState('')
   const [savingEmail, setSavingEmail] = useState(false)
-  const [cats,     setCats]     = useState({
+  const [cats,        setCats]        = useState({
     entities:[], departments:[], statuses:[], modalities:[], financing:[], officials:[], projTypes:[]
   })
 
-  // Cargar catálogos activos
+  // Cargar catálogos
   useEffect(() => {
     Promise.all([
       entitiesService.list(true), executingDepartmentsService.list(true),
@@ -187,14 +252,6 @@ export default function ProjectFormPage() {
       modalities: mod.data, financing: fin.data, officials: off.data, projTypes: pt.data,
     })).catch(() => toast.error('Error cargando catálogos'))
   }, [])
-
-  // Cargar siguiente número disponible (solo creación)
-  useEffect(() => {
-    if (isEdit) return
-    projectsService.getNextNumber(form.project_year)
-      .then(r => setNextNum(r.data.next_number))
-      .catch(() => {})
-  }, [form.project_year, isEdit])
 
   // Cargar proyecto si es edición
   useEffect(() => {
@@ -229,24 +286,27 @@ export default function ProjectFormPage() {
           family_name: r.family_name, segment_name: r.segment_name,
           is_main_code: r.is_main_code,
         })))
+        // En edición todas las secciones ya fueron "visitadas"
+        setVisited(new Set(SECTIONS.map(s => s.id)))
         setLoading(false)
       })
       .catch(() => { toast.error('Error cargando proyecto'); navigate('/projects') })
-    // Cargar correos secundarios
     emailsService.list(id).then(r => setEmails(r.data)).catch(() => {})
   }, [id, isEdit, navigate])
 
   const set = useCallback((k, v) => setForm(f => ({ ...f, [k]: v })), [])
 
+  // Marcar sección como visitada al navegar
+  const goSection = (sectionId) => {
+    setSection(sectionId)
+    setVisited(prev => new Set([...prev, sectionId]))
+  }
 
-
-  // Funciones de correos secundarios
   const addEmail = async () => {
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRe.test(emailForm.email)) { setEmailErr('Correo inválido'); return }
     setEmailErr('')
     if (!isEdit) {
-      // En creación: guardar en lista local, se persistirán al guardar el proyecto
       setEmails(prev => [...prev, { ...emailForm, secondary_email_id: Date.now(), local: true }])
       setEmailForm({ email:'', contact_type:'', contact_name:'', contact_position:'', contact_phone:'' })
       return
@@ -278,20 +338,16 @@ export default function ProjectFormPage() {
     setForm(f => ({ ...f, entity_contribution: Math.max(0, total - univ) || '' }))
   }, [form.project_value, form.university_contribution])
 
-  // El beneficio institucional se calcula en SecFinanciero con la fórmula:
-  // ((aporte_entidad + adiciones) * 12%) / 112%
-
+  // Sección completa: tiene required llenos Y fue visitada (para secciones sin required)
   const secStatus = SECTIONS.map(s => ({
-    ...s, complete: s.required.every(k => form[k] || form[k] === 0),
+    ...s,
+    complete: s.required.length > 0
+      ? s.required.every(k => form[k] || form[k] === 0)
+      : visited.has(s.id),
   }))
   const completedCount = secStatus.filter(s => s.complete).length
 
-  // Validación con foco automático en sección con error
   const validate = () => {
-    // Campos NOT NULL según BD: project_name, project_purpose, entity_id,
-    // executing_department_id, project_status_id, project_type_id,
-    // financing_type_id, execution_modality_id, project_value,
-    // start_date, end_date, ordering_official_id
     const checks = [
       ['identificacion', 'project_name',            'Nombre del proyecto'],
       ['identificacion', 'project_purpose',          'Objeto del proyecto'],
@@ -309,39 +365,43 @@ export default function ProjectFormPage() {
     for (const [sec, k, label] of checks) {
       if (!form[k] && form[k] !== 0) {
         toast.error(`Campo obligatorio: ${label}`)
-        setSection(sec); return false
+        goSection(sec); return false
       }
     }
     if (parseNum(form.project_value) <= 0) {
       toast.error('El valor del proyecto debe ser mayor a 0')
-      setSection('financiero'); return false
+      goSection('financiero'); return false
     }
-    // Validar check constraint BD: university_contribution + entity_contribution <= project_value
     const total = parseNum(form.project_value)
     const univ  = parseNum(form.university_contribution)
     const ent   = parseNum(form.entity_contribution)
     if (univ + ent > total) {
       toast.error('La suma de aportes no puede superar el valor total del proyecto')
-      setSection('financiero'); return false
+      goSection('financiero'); return false
     }
-    // Validar check constraint BD: end_date >= start_date
     if (form.start_date && form.end_date && form.end_date < form.start_date) {
       toast.error('La fecha de fin debe ser igual o posterior a la fecha de inicio')
-      setSection('fechas'); return false
+      goSection('fechas'); return false
     }
     if (form.subscription_date && form.start_date && form.start_date < form.subscription_date) {
       toast.error('La fecha de inicio no puede ser anterior a la fecha de suscripción')
-      setSection('fechas'); return false
+      goSection('fechas'); return false
     }
     if (form.minutes_date && form.start_date && form.minutes_date > form.end_date) {
       toast.error('La fecha del acta no puede ser posterior a la fecha de fin del proyecto')
-      setSection('adicional'); return false
+      goSection('adicional'); return false
     }
     return true
   }
 
-  const handleSave = async () => {
+  // Al pulsar "Crear proyecto" → mostrar modal de confirmación
+  const handleSaveClick = () => {
     if (!validate()) return
+    if (!isEdit) { setShowConfirm(true); return }
+    doSave()
+  }
+
+  const doSave = async () => {
     setSaving(true)
     try {
       const numF = ['entity_id','executing_department_id','project_status_id','project_type_id',
@@ -351,14 +411,12 @@ export default function ProjectFormPage() {
 
       const payload = {}
       for (const [k, v] of Object.entries(form)) {
-        // Nunca enviar claves de BD — son inmutables
         if (k === 'internal_project_number') continue
         if (isEdit && k === 'project_year') continue
         if (v === '' || v === null || v === undefined) { payload[k] = null; continue }
         if (numF.includes(k)) {
           payload[k] = Number(v)
         } else if (k === 'institutional_benefit_percentage') {
-          // NUMERIC(5,2): máx 999.99 — guardar como número simple sin parseNum
           const pct = parseFloat(String(v).replace(',', '.'))
           payload[k] = isNaN(pct) ? 12 : Math.min(pct, 999.99)
         } else if (decF.filter(f => f !== 'institutional_benefit_percentage').includes(k)) {
@@ -383,12 +441,10 @@ export default function ProjectFormPage() {
         })))
       }
 
-      // Guardar correos secundarios locales (solo en creación)
       if (!isEdit) {
         const localEmails = emails.filter(e => e.local)
         for (const em of localEmails) {
           const { local, secondary_email_id, ...emailData } = em
-          // limpiar campos vacíos
           const clean = Object.fromEntries(Object.entries(emailData).filter(([,v]) => v !== ''))
           await emailsService.create(projId, clean).catch(() => {})
         }
@@ -398,14 +454,14 @@ export default function ProjectFormPage() {
       navigate('/projects')
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al guardar')
-    } finally { setSaving(false) }
+    } finally { setSaving(false); setShowConfirm(false) }
   }
 
   const curIdx  = SECTIONS.findIndex(s => s.id === section)
   const hasPrev = curIdx > 0
   const hasNext = curIdx < SECTIONS.length - 1
 
-    if (loading) return (
+  if (loading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:300 }}>
       <p style={{ color:'var(--text-muted)', fontSize:14 }}>Cargando proyecto...</p>
     </div>
@@ -414,9 +470,17 @@ export default function ProjectFormPage() {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden' }}>
 
+      {/* ── Modal confirmación creación ── */}
+      {showConfirm && (
+        <ConfirmCreateModal
+          form={form} cats={cats}
+          onConfirm={doSave} onCancel={() => setShowConfirm(false)}
+          saving={saving}
+        />
+      )}
+
       {/* ── Topbar ── */}
       <div style={{ background:'var(--bg-card)', borderBottom:'1px solid var(--border-color)', flexShrink:0 }}>
-        {/* Fila 1: título + botón */}
         <div style={{ padding:'10px 24px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
             <button onClick={()=>navigate('/projects')} style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'1px solid var(--border-color)', cursor:'pointer', color:'var(--text-secondary)', fontSize:13, fontFamily:'inherit', padding:'7px 12px', borderRadius:8, whiteSpace:'nowrap' }}>
@@ -425,29 +489,27 @@ export default function ProjectFormPage() {
             <div style={{ width:1, height:24, background:'var(--border-color)' }}/>
             <div>
               <h1 style={{ fontSize:15, fontWeight:800, color:'var(--text-primary)', margin:0 }}>
-                {isEdit
-                  ? `Editando · ${form.project_year} #${form.internal_project_number || ''}`
-                  : `Nuevo proyecto · ${form.project_year}${nextNum ? ` (será #${nextNum})` : ''}`}
+                {isEdit ? `Editando proyecto · ${form.project_year}` : `Nuevo proyecto · ${form.project_year}`}
               </h1>
               <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>
                 {completedCount} de {SECTIONS.length} pasos completados
               </p>
             </div>
           </div>
-          <button onClick={handleSave} disabled={saving} className="btn-primary" style={{ minWidth:170 }}>
+          <button onClick={handleSaveClick} disabled={saving} className="btn-primary" style={{ minWidth:170 }}>
             <Save size={14}/>
-            {saving?'Guardando...': isEdit?'Guardar cambios':'Crear proyecto'}
+            {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear proyecto'}
           </button>
         </div>
 
-        {/* Stepper ejecutivo */}
+        {/* Stepper */}
         <div style={{ display:'flex', alignItems:'stretch', padding:'0 16px', overflowX:'auto' }}>
           {secStatus.map((s, i) => {
-            const active  = section === s.id
-            const done    = s.complete
+            const active = section === s.id
+            const done   = s.complete
             return (
               <div key={s.id} style={{ display:'flex', alignItems:'center', flex: i < secStatus.length-1 ? '1 1 0' : 'none', minWidth:0 }}>
-                <button onClick={()=>setSection(s.id)} style={{
+                <button onClick={()=>goSection(s.id)} style={{
                   display:'flex', flexDirection:'column', alignItems:'center', gap:3,
                   padding:'8px 10px 11px', border:'none', background:'none', cursor:'pointer',
                   fontFamily:'inherit', flexShrink:0, position:'relative',
@@ -462,10 +524,7 @@ export default function ProjectFormPage() {
                   }}>
                     {done ? <CheckCircle2 size={14} color="#fff"/> : <span>{String(i+1).padStart(2,'0')}</span>}
                   </div>
-                  <span style={{
-                    fontSize:10, fontWeight: active ? 700 : 500, whiteSpace:'nowrap',
-                    color: done ? '#10B981' : active ? '#0EA5E9' : 'var(--text-muted)',
-                  }}>
+                  <span style={{ fontSize:10, fontWeight: active ? 700 : 500, whiteSpace:'nowrap', color: done ? '#10B981' : active ? '#0EA5E9' : 'var(--text-muted)' }}>
                     {s.label}
                   </span>
                   {active && (
@@ -490,7 +549,7 @@ export default function ProjectFormPage() {
           {secStatus.map(s=>{
             const active = section===s.id
             return (
-              <button key={s.id} onClick={()=>setSection(s.id)} style={{
+              <button key={s.id} onClick={()=>goSection(s.id)} style={{
                 width:'100%', display:'flex', alignItems:'center', gap:9,
                 padding:'10px 12px', borderRadius:8, border:'none', marginBottom:2,
                 borderLeft:`3px solid ${active?'#0EA5E9':'transparent'}`,
@@ -517,30 +576,30 @@ export default function ProjectFormPage() {
           </div>
         </div>
 
-        {/* Contenido scrolleable */}
+        {/* Contenido */}
         <div style={{ flex:1, overflowY:'auto', background:'var(--bg-primary)' }}>
           <div style={{ maxWidth:780, margin:'0 auto', padding:36 }}>
             {section==='identificacion' && <SecIdentificacion form={form} set={set} isEdit={isEdit}/>}
-            {section==='clasificacion'  && <SecClasificacion  form={form} set={set} cats={cats} isEdit={isEdit}/>}
-            {section==='financiero'     && <SecFinanciero form={form} set={set} projectId={id} isEdit={isEdit}/>}
-            {section==='fechas'         && <SecFechas         form={form} set={set} />}
+            {section==='clasificacion'  && <SecClasificacion  form={form} set={set} cats={cats}/>}
+            {section==='financiero'     && <SecFinanciero     form={form} set={set} projectId={id} isEdit={isEdit}/>}
+            {section==='fechas'         && <SecFechas         form={form} set={set} isEdit={isEdit}/>}
             {section==='actores'        && <SecActores        form={form} set={set} cats={cats} emails={emails} emailForm={emailForm} setEmailForm={setEmailForm} emailErr={emailErr} addEmail={addEmail} removeEmail={removeEmail} savingEmail={savingEmail} isEdit={isEdit}/>}
-            {section==='rup'            && <SecRup            rupCodes={rupCodes} onChange={setRupCodes} form={form} set={set} />}
-            {section==='adicional'      && <SecAdicional      form={form} set={set} />}
+            {section==='rup'            && <SecRup            rupCodes={rupCodes} onChange={setRupCodes} form={form} set={set}/>}
+            {section==='adicional'      && <SecAdicional      form={form} set={set}/>}
           </div>
         </div>
       </div>
 
       {/* ── Nav inferior ── */}
       <div style={{ borderTop:'1px solid var(--border-color)', background:'var(--bg-card)', padding:'12px 28px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
-        <button onClick={()=>hasPrev&&setSection(SECTIONS[curIdx-1].id)} disabled={!hasPrev}
+        <button onClick={()=>hasPrev&&goSection(SECTIONS[curIdx-1].id)} disabled={!hasPrev}
           className="btn-secondary" style={{ opacity:hasPrev?1:0.3, minWidth:130 }}>
           ← {hasPrev?SECTIONS[curIdx-1].label:'Anterior'}
         </button>
         <span style={{ fontSize:12, color:'var(--text-muted)' }}>
           {curIdx+1} / {SECTIONS.length} · <strong style={{ color:'var(--text-secondary)' }}>{SECTIONS[curIdx].label}</strong>
         </span>
-        <button onClick={()=>hasNext&&setSection(SECTIONS[curIdx+1].id)} disabled={!hasNext}
+        <button onClick={()=>hasNext&&goSection(SECTIONS[curIdx+1].id)} disabled={!hasNext}
           className="btn-secondary" style={{ opacity:hasNext?1:0.3, minWidth:130 }}>
           {hasNext?SECTIONS[curIdx+1].label:'Finalizar'} →
         </button>
@@ -582,18 +641,28 @@ function F({ label, required, span, hint, children }) {
     </div>
   )
 }
+
+/* Select con flecha visible siempre */
+const selStyle = {
+  appearance: 'auto',
+  WebkitAppearance: 'auto',
+  MozAppearance: 'auto',
+  cursor: 'pointer',
+}
 const Sel = ({value,onChange,children}) => (
-  <select className="input-field" value={value??''} onChange={e=>onChange(e.target.value)}>{children}</select>
+  <select className="input-field" style={selStyle} value={value??''} onChange={e=>onChange(e.target.value)}>
+    {children}
+  </select>
 )
 
 /* ─── Sección 1: Identificación ─────────────────────────────────── */
 function SecIdentificacion({ form, set, isEdit }) {
   return <>
     <ST icon={FileText} title="Identificación del proyecto"
-      subtitle="El número interno se asigna automáticamente al guardar"/>
+      subtitle="El número de proyecto se asigna automáticamente al guardar"/>
     {isEdit && (
       <div style={{ marginBottom:16, padding:'10px 14px', borderRadius:'var(--radius-md)', background:'rgba(14,165,233,0.06)', border:'1px solid rgba(14,165,233,0.2)', fontSize:12, color:'var(--text-muted)' }}>
-        ℹ️ El <strong>año</strong> y el <strong>número interno</strong> del proyecto no son modificables — son la clave de identificación en la base de datos.
+        ℹ️ El <strong>año</strong> del proyecto no es modificable — es la clave de identificación en la base de datos.
       </div>
     )}
     <G cols={2}>
@@ -603,26 +672,11 @@ function SecIdentificacion({ form, set, isEdit }) {
           readOnly={isEdit} min={2020} max={2100}
           style={{ background: isEdit ? 'var(--bg-hover)' : undefined, cursor: isEdit ? 'not-allowed' : undefined }}/>
       </F>
-      {isEdit ? (
-        <F label="N° interno del proyecto" hint="No modificable · clave de BD">
-          <input className="input-field" value={form.internal_project_number || '—'} readOnly
-            style={{ background:'var(--bg-hover)', cursor:'not-allowed', fontFamily:'monospace', fontWeight:700 }}/>
-        </F>
-      ) : (
-        <F label="N° externo" hint={`Máx. ${LIMITS.external_project_number} caracteres`}>
-          <TxtInp value={form.external_project_number} onChange={v=>set('external_project_number',v)}
-            max={LIMITS.external_project_number} placeholder="Ej: CONV-001"/>
-        </F>
-      )}
+      <F label="N° externo (contrato)" hint={`Máx. ${LIMITS.external_project_number} caracteres`}>
+        <TxtInp value={form.external_project_number} onChange={v=>set('external_project_number',v)}
+          max={LIMITS.external_project_number} placeholder="Ej: CONV-001"/>
+      </F>
     </G>
-    {isEdit && (
-      <G cols={1}>
-        <F label="N° externo (contrato)" hint={`Máx. ${LIMITS.external_project_number} caracteres`}>
-          <TxtInp value={form.external_project_number} onChange={v=>set('external_project_number',v)}
-            max={LIMITS.external_project_number} placeholder="Ej: CONV-001"/>
-        </F>
-      </G>
-    )}
     <G cols={1}>
       <F label="Nombre completo del proyecto" required>
         <TxtInp value={form.project_name} onChange={v=>set('project_name',v)}
@@ -673,9 +727,8 @@ function SecClasificacion({ form, set, cats }) {
 /* ─── Sección 3: Financiero ──────────────────────────────────────── */
 function SecFinanciero({ form, set, projectId, isEdit }) {
   const [totalAdditions, setTotalAdditions] = useState(0)
-  const [suggested, setSuggested] = useState(null)  // valor sugerido por fórmula
+  const [suggested,      setSuggested]      = useState(null)
 
-  // Cargar adiciones reales del proyecto (modificaciones tipo ADICION)
   useEffect(() => {
     if (!isEdit || !projectId) return
     projectsService.getAdditions(projectId)
@@ -683,37 +736,25 @@ function SecFinanciero({ form, set, projectId, isEdit }) {
       .catch(() => {})
   }, [isEdit, projectId])
 
-  const total = parseNum(form.project_value)
-  const univ  = parseNum(form.university_contribution)
-  const ent   = parseNum(form.entity_contribution)   
-
-  // Calcular sugerencia: ((aporte_entidad + adiciones) * 12%) / 112%
-  useEffect(() => {
-    if (ent > 0) {
-      const val = ((ent + totalAdditions) * 0.12) / 1.12
-      setSuggested(val)
-    } else {
-      setSuggested(null)
-    }
-  }, [ent, totalAdditions])
-
+  const total  = parseNum(form.project_value)
+  const univ   = parseNum(form.university_contribution)
+  const ent    = parseNum(form.entity_contribution)
   const benVal = parseNum(form.institutional_benefit_value)
   const benPct = total > 0 && benVal > 0 ? ((benVal / total) * 100).toFixed(2) : '0.00'
 
-  const applySuggested = () => {
-    if (suggested !== null) set('institutional_benefit_value', Math.round(suggested))
-  }
+  useEffect(() => {
+    if (ent > 0) setSuggested(((ent + totalAdditions) * 0.12) / 1.12)
+    else setSuggested(null)
+  }, [ent, totalAdditions])
 
   return <>
-    <ST icon={DollarSign} color="#10B981" title="Información financiera"
-      subtitle="Valores en pesos colombianos (COP)"/>
+    <ST icon={DollarSign} color="#10B981" title="Información financiera" subtitle="Valores en pesos colombianos (COP)"/>
     <G cols={2}>
       <F label="Valor total del proyecto (COP)" required>
         <MoneyInput value={form.project_value} onChange={v=>set('project_value',v)} placeholder="0"/>
       </F>
       <F label="Código contable">
-        <TxtInp value={form.accounting_code} onChange={v=>set('accounting_code',v)}
-          max={LIMITS.accounting_code} placeholder="Ej: 4-1-01-001"/>
+        <TxtInp value={form.accounting_code} onChange={v=>set('accounting_code',v)} max={LIMITS.accounting_code} placeholder="Ej: 4-1-01-001"/>
       </F>
       <F label="Aporte Universidad (COP)">
         <MoneyInput value={form.university_contribution} onChange={v=>set('university_contribution',v)} placeholder="0"/>
@@ -723,7 +764,6 @@ function SecFinanciero({ form, set, projectId, isEdit }) {
       </F>
     </G>
 
-    {/* Beneficio institucional — editable, con sugerencia discreta */}
     <div style={{ background:'var(--bg-hover)', border:'1px solid var(--border-color)', borderRadius:'var(--radius-lg)', padding:'16px 18px', marginBottom:16 }}>
       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16, flexWrap:'wrap' }}>
         <div style={{ flex:'1 1 220px', minWidth:0 }}>
@@ -731,26 +771,19 @@ function SecFinanciero({ form, set, projectId, isEdit }) {
             Beneficio institucional (COP)
           </label>
           <MoneyInput value={form.institutional_benefit_value} onChange={v=>set('institutional_benefit_value',v)} placeholder="Ingrese el valor"/>
-          {/* Sugerencia discreta */}
           {suggested !== null && Math.abs(suggested - benVal) > 1 && (
             <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
               <span style={{ fontSize:11, color:'var(--text-muted)' }}>
-                Sugerido por fórmula: <strong style={{ color:'#10B981', fontFamily:'monospace' }}>${fmtNum(suggested.toFixed(0))}</strong>
+                Sugerido: <strong style={{ color:'#10B981', fontFamily:'monospace' }}>${fmtNum(suggested.toFixed(0))}</strong>
               </span>
-              <button onClick={applySuggested} style={{
-                fontSize:11, fontWeight:700, color:'#0EA5E9', background:'rgba(14,165,233,0.08)',
-                border:'1px solid rgba(14,165,233,0.25)', borderRadius:6, padding:'2px 8px',
-                cursor:'pointer', fontFamily:'inherit',
-              }}>
+              <button onClick={()=>set('institutional_benefit_value', Math.round(suggested))} style={{ fontSize:11, fontWeight:700, color:'#0EA5E9', background:'rgba(14,165,233,0.08)', border:'1px solid rgba(14,165,233,0.25)', borderRadius:6, padding:'2px 8px', cursor:'pointer', fontFamily:'inherit' }}>
                 Aplicar
               </button>
             </div>
           )}
         </div>
         <div style={{ flex:'0 0 120px', textAlign:'center' }}>
-          <label style={{ display:'block', fontSize:'var(--font-xs)', fontWeight:700, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>
-            % sobre total
-          </label>
+          <label style={{ display:'block', fontSize:'var(--font-xs)', fontWeight:700, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:6 }}>% sobre total</label>
           <div style={{ padding:'10px 8px', borderRadius:'var(--radius-md)', background:'var(--bg-card)', border:'1px solid var(--border-color)', fontFamily:'monospace', fontSize:18, fontWeight:800, color:'#10B981', textAlign:'center' }}>
             {benPct}%
           </div>
@@ -768,6 +801,23 @@ function SecFinanciero({ form, set, projectId, isEdit }) {
         <input className="input-field" type="number" value={form.beneficiaries_count??''} onChange={e=>set('beneficiaries_count',e.target.value)} min={0} placeholder="0" style={{ maxWidth:200 }}/>
       </F>
     </G>
+
+    {/* Adiciones activas — solo si existen */}
+    {isEdit && totalAdditions > 0 && (
+      <div style={{ background:'rgba(16,185,129,0.06)', border:'1px solid rgba(16,185,129,0.25)', borderRadius:'var(--radius-lg)', padding:'14px 18px', marginTop:4, marginBottom:16 }}>
+        <p style={{ fontSize:11, fontWeight:700, color:'#065F46', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:8 }}>Adiciones al contrato</p>
+        <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
+          <div>
+            <p style={{ fontSize:11, color:'var(--text-muted)', marginBottom:2 }}>Total adicionado</p>
+            <p style={{ fontSize:16, fontWeight:800, color:'#10B981', fontFamily:'monospace' }}>${fmtNum(totalAdditions)}</p>
+          </div>
+          <div>
+            <p style={{ fontSize:11, color:'var(--text-muted)', marginBottom:2 }}>Valor total vigente</p>
+            <p style={{ fontSize:16, fontWeight:800, color:'#0F2952', fontFamily:'monospace' }}>${fmtNum(total + totalAdditions)}</p>
+          </div>
+        </div>
+      </div>
+    )}
 
     {total > 0 && (
       <div style={{ background:'var(--bg-card)', border:'1px solid var(--border-color)', borderRadius:'var(--radius-lg)', padding:20, marginTop:4 }}>
@@ -794,116 +844,69 @@ function SecFinanciero({ form, set, projectId, isEdit }) {
 function SecFechas({ form, set, isEdit }) {
   const days = form.start_date && form.end_date && form.end_date > form.start_date
     ? Math.round((new Date(form.end_date) - new Date(form.start_date)) / 86400000) : null
-
   const startErr = !isEdit && form.subscription_date && form.start_date && form.start_date < form.subscription_date
   const endErr   = !isEdit && form.start_date && form.end_date && form.end_date <= form.start_date
 
   return <>
     <ST icon={Calendar} color="#F59E0B" title="Fechas y cronograma"
-      subtitle={isEdit
-        ? 'Las fechas contractuales originales no son modificables — registra una prórroga en el módulo de Modificaciones'
-        : 'La fecha de inicio no puede ser anterior a la suscripción · La fecha de fin debe ser posterior al inicio'}
-    />
-
-    {/* Aviso cuando es edición */}
+      subtitle={isEdit ? 'Las fechas contractuales originales no son modificables — registra una prórroga en Modificaciones' : 'La fecha de inicio no puede ser anterior a la suscripción'}/>
     {isEdit && (
-      <div style={{
-        marginBottom: 16, padding: '10px 14px', borderRadius: 'var(--radius-md)',
-        background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)',
-        fontSize: 12, color: 'var(--text-muted)',
-      }}>
-        🔒 <strong>Fecha de inicio</strong> y <strong>Fecha de fin</strong> son inmutables — son las fechas originales del contrato.
-        Si el proyecto fue prorrogado, registra la modificación en <em>Modificaciones → Prórroga</em>.
+      <div style={{ marginBottom:16, padding:'10px 14px', borderRadius:'var(--radius-md)', background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.25)', fontSize:12, color:'var(--text-muted)' }}>
+        🔒 <strong>Fecha de inicio</strong> y <strong>Fecha de fin</strong> son inmutables — fechas originales del contrato.
       </div>
     )}
-
-    <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 12 }}>Cronograma de ejecución</p>
+    <p style={{ fontSize:13, fontWeight:700, color:'var(--text-secondary)', marginBottom:12 }}>Cronograma de ejecución</p>
     <G cols={3}>
-      {/* Fecha de suscripción — siempre editable */}
       <F label="Fecha de suscripción" hint="Fecha de firma del convenio">
-        <input
-          className="input-field"
-          type="date"
-          value={form.subscription_date || ''}
-          onChange={e => set('subscription_date', e.target.value)}
-        />
+        <input className="input-field" type="date" value={form.subscription_date||''} onChange={e=>set('subscription_date',e.target.value)}/>
       </F>
-
-      {/* Fecha de inicio — readonly en edición */}
-      <F label="Fecha de inicio" required hint={isEdit ? 'No modificable · fecha original del contrato' : undefined}>
+      <F label="Fecha de inicio" required hint={isEdit?'No modificable':undefined}>
         <div>
-          <input
-            className="input-field"
-            type="date"
-            value={form.start_date || ''}
-            onChange={isEdit ? undefined : e => set('start_date', e.target.value)}
-            readOnly={isEdit}
-            min={!isEdit ? (form.subscription_date || '') : undefined}
-            style={{
-              borderColor: startErr ? '#B91C3C' : isEdit ? 'var(--border-color)' : undefined,
-              background: isEdit ? 'var(--bg-hover)' : undefined,
-              cursor: isEdit ? 'not-allowed' : undefined,
-              opacity: isEdit ? 0.75 : 1,
-            }}
-          />
-          {startErr && <p style={{ fontSize: 11, color: '#B91C3C', marginTop: 4 }}>⚠ No puede ser anterior a la suscripción</p>}
+          <input className="input-field" type="date" value={form.start_date||''}
+            onChange={isEdit?undefined:e=>set('start_date',e.target.value)} readOnly={isEdit}
+            min={!isEdit?(form.subscription_date||''):undefined}
+            style={{ borderColor:startErr?'#B91C3C':isEdit?'var(--border-color)':undefined, background:isEdit?'var(--bg-hover)':undefined, cursor:isEdit?'not-allowed':undefined, opacity:isEdit?0.75:1 }}/>
+          {startErr&&<p style={{ fontSize:11, color:'#B91C3C', marginTop:4 }}>⚠ No puede ser anterior a la suscripción</p>}
         </div>
       </F>
-
-      {/* Fecha de fin — readonly en edición */}
-      <F label="Fecha de fin original" required hint={isEdit ? 'No modificable · fecha original del contrato' : undefined}>
+      <F label="Fecha de fin original" required hint={isEdit?'No modificable':undefined}>
         <div>
-          <input
-            className="input-field"
-            type="date"
-            value={form.end_date || ''}
-            onChange={isEdit ? undefined : e => set('end_date', e.target.value)}
-            readOnly={isEdit}
-            min={!isEdit ? (form.start_date || '') : undefined}
-            style={{
-              borderColor: endErr ? '#B91C3C' : isEdit ? 'var(--border-color)' : undefined,
-              background: isEdit ? 'var(--bg-hover)' : undefined,
-              cursor: isEdit ? 'not-allowed' : undefined,
-              opacity: isEdit ? 0.75 : 1,
-            }}
-          />
-          {endErr && <p style={{ fontSize: 11, color: '#B91C3C', marginTop: 4 }}>⚠ Debe ser posterior a la fecha de inicio</p>}
+          <input className="input-field" type="date" value={form.end_date||''}
+            onChange={isEdit?undefined:e=>set('end_date',e.target.value)} readOnly={isEdit}
+            min={!isEdit?(form.start_date||''):undefined}
+            style={{ borderColor:endErr?'#B91C3C':isEdit?'var(--border-color)':undefined, background:isEdit?'var(--bg-hover)':undefined, cursor:isEdit?'not-allowed':undefined, opacity:isEdit?0.75:1 }}/>
+          {endErr&&<p style={{ fontSize:11, color:'#B91C3C', marginTop:4 }}>⚠ Debe ser posterior al inicio</p>}
         </div>
       </F>
     </G>
-
     {days !== null && (
-      <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
+      <div style={{ display:'flex', gap:10, marginBottom:24 }}>
         {[
-          [`${days} días`,              'Duración original', '#0EA5E9'],
-          [`≈ ${Math.round(days/30)} meses`, 'Aproximados',   '#10B981'],
-          [`${(days/365).toFixed(1)} años`,  'En años',       '#8B5CF6'],
+          [`${days} días`, 'Duración original', '#0EA5E9'],
+          [`≈ ${Math.round(days/30)} meses`, 'Aproximados', '#10B981'],
+          [`${(days/365).toFixed(1)} años`, 'En años', '#8B5CF6'],
         ].map(([val, label, color]) => (
-          <div key={label} style={{
-            flex: 1, textAlign: 'center', padding: '14px 8px', borderRadius: 10,
-            background: `${color}08`, border: `1px solid ${color}22`,
-          }}>
-            <p style={{ fontSize: 20, fontWeight: 800, color, fontFamily: 'monospace', margin: 0 }}>{val}</p>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{label}</p>
+          <div key={label} style={{ flex:1, textAlign:'center', padding:'14px 8px', borderRadius:10, background:`${color}08`, border:`1px solid ${color}22` }}>
+            <p style={{ fontSize:20, fontWeight:800, color, fontFamily:'monospace', margin:0 }}>{val}</p>
+            <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:4 }}>{label}</p>
           </div>
         ))}
       </div>
     )}
-
-    <div style={{ height: 1, background: 'var(--border-color)', margin: '4px 0 20px' }} />
-    <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 12 }}>Acta de aprobación del Comité</p>
+    <div style={{ height:1, background:'var(--border-color)', margin:'4px 0 20px' }}/>
+    <p style={{ fontSize:13, fontWeight:700, color:'var(--text-secondary)', marginBottom:12 }}>Acta de aprobación del Comité</p>
     <G cols={3}>
       <F label="Tipo de sesión">
-        <Sel value={form.session_type} onChange={v => set('session_type', v)}>
+        <Sel value={form.session_type} onChange={v=>set('session_type',v)}>
           <option value="">— Seleccionar —</option>
-          {SESSION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          {SESSION_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
         </Sel>
       </F>
       <F label="Número del acta">
-        <TxtInp value={form.minutes_number} onChange={v => set('minutes_number', v)} max={LIMITS.minutes_number} placeholder="001-2025" />
+        <TxtInp value={form.minutes_number} onChange={v=>set('minutes_number',v)} max={LIMITS.minutes_number} placeholder="001-2025"/>
       </F>
       <F label="Fecha del acta">
-        <input className="input-field" type="date" value={form.minutes_date || ''} onChange={e => set('minutes_date', e.target.value)} />
+        <input className="input-field" type="date" value={form.minutes_date||''} onChange={e=>set('minutes_date',e.target.value)}/>
       </F>
     </G>
   </>
@@ -912,8 +915,7 @@ function SecFechas({ form, set, isEdit }) {
 /* ─── Sección 5: Actores ─────────────────────────────────────────── */
 function SecActores({ form, set, cats, emails, emailForm, setEmailForm, emailErr, addEmail, removeEmail, savingEmail, isEdit }) {
   return <>
-    <ST icon={Users} color="#B91C3C" title="Actores del proyecto"
-      subtitle="Solo se listan registros activos en cada catálogo"/>
+    <ST icon={Users} color="#B91C3C" title="Actores del proyecto" subtitle="Solo se listan registros activos en cada catálogo"/>
     <G cols={1}>
       <F label="Entidad contratante" required hint={`${cats.entities.length} entidades activas disponibles`}>
         <SearchableSelect value={form.entity_id} onChange={v=>set('entity_id',v)}
@@ -932,39 +934,27 @@ function SecActores({ form, set, cats, emails, emailForm, setEmailForm, emailErr
       </F>
     </G>
     <G cols={1}>
-      <F label='Supervisor del Contrato' required hint='¿Quién supervisa el contrato por parte de la Universidad?'>
+      <F label="Supervisor del Contrato" required hint="¿Quién supervisa el contrato por parte de la Universidad?">
         <Sel value={form.supervisor_type||'JEFE_EXTENSION'} onChange={v=>set('supervisor_type',v)}>
-          <option value='JEFE_EXTENSION'>Jefe de la Oficina de Extensión</option>
-          <option value='RECTOR'>Rector</option>
+          <option value="JEFE_EXTENSION">Jefe de la Oficina de Extensión</option>
+          <option value="RECTOR">Rector</option>
         </Sel>
       </F>
     </G>
 
-    {/* ── Correos de contacto ── */}
     <div style={{ marginTop:24 }}>
       <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
         <Mail size={16} color="#0EA5E9"/>
         <p style={{ fontWeight:700, fontSize:14, color:'var(--text-primary)', margin:0 }}>Correos de contacto</p>
       </div>
-
-      {/* Correo principal */}
       <div style={{ background:'var(--bg-hover)', border:'1px solid var(--border-color)', borderRadius:'var(--radius-lg)', padding:'14px 16px', marginBottom:12 }}>
-        <p style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:8 }}>
-          Correo principal del proyecto
-        </p>
-        <TxtInp type="email" value={form.main_email} onChange={v=>set('main_email',v)}
-          max={LIMITS.main_email} placeholder="correo@udistrital.edu.co"/>
+        <p style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:8 }}>Correo principal del proyecto</p>
+        <TxtInp type="email" value={form.main_email} onChange={v=>set('main_email',v)} max={LIMITS.main_email} placeholder="correo@udistrital.edu.co"/>
       </div>
-
-      {/* Lista correos secundarios existentes */}
       {emails.length > 0 && (
         <div style={{ marginBottom:12 }}>
           {emails.map(em => (
-            <div key={em.secondary_email_id} style={{
-              display:'flex', alignItems:'center', gap:10, padding:'10px 14px',
-              background:'var(--bg-card)', border:'1px solid var(--border-color)',
-              borderRadius:'var(--radius-md)', marginBottom:6,
-            }}>
+            <div key={em.secondary_email_id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'var(--bg-card)', border:'1px solid var(--border-color)', borderRadius:'var(--radius-md)', marginBottom:6 }}>
               <Mail size={14} color="var(--text-muted)" style={{ flexShrink:0 }}/>
               <div style={{ flex:1, minWidth:0 }}>
                 <p style={{ fontSize:13, fontWeight:600, color:'var(--text-primary)', margin:0 }}>{em.email}</p>
@@ -973,60 +963,39 @@ function SecActores({ form, set, cats, emails, emailForm, setEmailForm, emailErr
                 </p>
               </div>
               {em.local && <span style={{ fontSize:10, padding:'2px 6px', borderRadius:4, background:'rgba(245,158,11,0.1)', color:'#B45309', fontWeight:700 }}>Pendiente</span>}
-              <button onClick={()=>removeEmail(em)} style={{
-                border:'none', background:'transparent', cursor:'pointer', padding:4,
-                color:'var(--text-muted)', borderRadius:6, display:'flex', alignItems:'center',
-              }}>
+              <button onClick={()=>removeEmail(em)} style={{ border:'none', background:'transparent', cursor:'pointer', padding:4, color:'var(--text-muted)', borderRadius:6, display:'flex', alignItems:'center' }}>
                 <Trash2 size={14}/>
               </button>
             </div>
           ))}
         </div>
       )}
-
-      {/* Formulario agregar correo secundario */}
       <div style={{ background:'var(--bg-card)', border:'1.5px dashed var(--border-color)', borderRadius:'var(--radius-lg)', padding:'16px' }}>
-        <p style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:12 }}>
-          + Agregar correo secundario
-        </p>
+        <p style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:12 }}>+ Agregar correo secundario</p>
         <G cols={2}>
           <F label="Correo electrónico" required>
-            <TxtInp type="email" value={emailForm.email}
-              onChange={v=>{ setEmailForm(f=>({...f,email:v})) }}
-              max={200} placeholder="contacto@entidad.gov.co"/>
+            <TxtInp type="email" value={emailForm.email} onChange={v=>setEmailForm(f=>({...f,email:v}))} max={200} placeholder="contacto@entidad.gov.co"/>
           </F>
           <F label="Tipo de contacto" hint="Ej: Principal, Técnico, Financiero">
-            <TxtInp value={emailForm.contact_type}
-              onChange={v=>setEmailForm(f=>({...f,contact_type:v}))}
-              max={50} placeholder="Técnico"/>
+            <TxtInp value={emailForm.contact_type} onChange={v=>setEmailForm(f=>({...f,contact_type:v}))} max={50} placeholder="Técnico"/>
           </F>
           <F label="Nombre del contacto">
-            <TxtInp value={emailForm.contact_name}
-              onChange={v=>setEmailForm(f=>({...f,contact_name:v}))}
-              max={100} placeholder="Nombre completo"/>
+            <TxtInp value={emailForm.contact_name} onChange={v=>setEmailForm(f=>({...f,contact_name:v}))} max={100} placeholder="Nombre completo"/>
           </F>
           <F label="Cargo / Posición">
-            <TxtInp value={emailForm.contact_position}
-              onChange={v=>setEmailForm(f=>({...f,contact_position:v}))}
-              max={100} placeholder="Director de Proyecto"/>
+            <TxtInp value={emailForm.contact_position} onChange={v=>setEmailForm(f=>({...f,contact_position:v}))} max={100} placeholder="Director de Proyecto"/>
           </F>
           <F label="Teléfono de contacto">
-            <TxtInp value={emailForm.contact_phone}
-              onChange={v=>setEmailForm(f=>({...f,contact_phone:v}))}
-              max={20} placeholder="3001234567"/>
+            <TxtInp value={emailForm.contact_phone} onChange={v=>setEmailForm(f=>({...f,contact_phone:v}))} max={20} placeholder="3001234567"/>
           </F>
         </G>
-        {emailErr && (
-          <p style={{ fontSize:12, color:'#B91C3C', marginTop:6, marginBottom:8 }}>{emailErr}</p>
-        )}
-        <button onClick={addEmail} disabled={!emailForm.email || savingEmail} className="btn-secondary" style={{ marginTop:8, display:'flex', alignItems:'center', gap:6 }}>
+        {emailErr && <p style={{ fontSize:12, color:'#B91C3C', marginTop:6, marginBottom:8 }}>{emailErr}</p>}
+        <button onClick={addEmail} disabled={!emailForm.email||savingEmail} className="btn-secondary" style={{ marginTop:8, display:'flex', alignItems:'center', gap:6 }}>
           <Plus size={14}/>
           {savingEmail ? 'Guardando...' : 'Agregar correo'}
         </button>
         {!isEdit && emails.length > 0 && (
-          <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:8 }}>
-            ℹ️ Los correos se guardarán junto con el proyecto
-          </p>
+          <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:8 }}>ℹ️ Los correos se guardarán junto con el proyecto</p>
         )}
       </div>
     </div>
@@ -1046,10 +1015,8 @@ function SecRup({ rupCodes, onChange, form, set }) {
     <RupSelector selectedCodes={rupCodes} onChange={onChange}/>
     <div style={{ height:1, background:'var(--border-color)', margin:'24px 0 20px' }}/>
     <F label="Observaciones generales de códigos RUP" hint={`Máx. ${LIMITS.rup_codes_general_observations} caracteres`}>
-      <TxtArea rows={4} value={form.rup_codes_general_observations}
-        onChange={v=>set('rup_codes_general_observations',v)}
-        max={LIMITS.rup_codes_general_observations}
-        placeholder="Observaciones sobre los códigos RUP asignados al proyecto..."/>
+      <TxtArea rows={4} value={form.rup_codes_general_observations} onChange={v=>set('rup_codes_general_observations',v)}
+        max={LIMITS.rup_codes_general_observations} placeholder="Observaciones sobre los códigos RUP asignados al proyecto..."/>
     </F>
   </>
 }
@@ -1061,19 +1028,16 @@ function SecAdicional({ form, set }) {
       subtitle="Datos complementarios, enlaces y observaciones generales"/>
     <G cols={2}>
       <F label="Acto administrativo">
-        <TxtInp value={form.administrative_act} onChange={v=>set('administrative_act',v)}
-          max={LIMITS.administrative_act} placeholder="Resolución 001 de 2025"/>
+        <TxtInp value={form.administrative_act} onChange={v=>set('administrative_act',v)} max={LIMITS.administrative_act} placeholder="Resolución 001 de 2025"/>
       </F>
       <div/>
       <F label="Enlace SECOP" span={2}>
-        <TxtInp value={form.secop_link} onChange={v=>set('secop_link',v)}
-          max={LIMITS.secop_link} placeholder="https://www.secop.gov.co/..."/>
+        <TxtInp value={form.secop_link} onChange={v=>set('secop_link',v)} max={LIMITS.secop_link} placeholder="https://www.secop.gov.co/..."/>
       </F>
     </G>
     <G cols={1}>
       <F label="Observaciones generales">
-        <TxtArea rows={4} value={form.observations} onChange={v=>set('observations',v)}
-          max={LIMITS.observations} placeholder="Observaciones, notas o comentarios relevantes del proyecto..."/>
+        <TxtArea rows={4} value={form.observations} onChange={v=>set('observations',v)} max={LIMITS.observations} placeholder="Observaciones, notas o comentarios relevantes del proyecto..."/>
       </F>
     </G>
   </>

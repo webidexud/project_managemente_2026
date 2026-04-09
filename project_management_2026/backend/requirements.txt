@@ -9,3 +9,5 @@ passlib[bcrypt]==1.7.4
 python-multipart==0.0.12
 alembic==1.13.3
 python-dotenv==1.0.1
+requests==2.32.3
+paramiko==3.5.0

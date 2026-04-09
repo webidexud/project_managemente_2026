@@ -123,9 +123,28 @@ function ModDetail({ m }) {
       {(m.addition_value || m.new_total_value) && (
         <DSub title="Adición Presupuestal" color="#10B981">
           <DGrid cols={2}>
-            <DField label="Valor de la adición" value={fmtMoney(m.addition_value)} color="#10B981" mono />
-            <DField label="Nuevo valor total" value={fmtMoney(m.new_total_value)} mono />
+            <DField label="Valor total de la adición" value={fmtMoney(m.addition_value)} color="#10B981" mono />
+            <DField label="Nuevo valor total contrato" value={fmtMoney(m.new_total_value)} mono />
           </DGrid>
+          {(m.entity_contribution_addition || m.university_contribution_addition) && (
+            <DGrid cols={2}>
+              <DField label="Aporte entidad en adición" value={fmtMoney(m.entity_contribution_addition)} mono />
+              <DField label="Aporte universidad en adición" value={fmtMoney(m.university_contribution_addition)} mono />
+            </DGrid>
+          )}
+          {m.calculated_benefit_value && (
+            <div style={{ marginTop:8, padding:'10px 14px', borderRadius:8, background:'rgba(5,150,105,0.08)', border:'1px solid rgba(5,150,105,0.25)' }}>
+              <p style={{ fontSize:10, fontWeight:700, color:'#065F46', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:4 }}>
+                Beneficio institucional vigente tras esta adición
+              </p>
+              <p style={{ fontSize:15, fontWeight:800, color:'#059669', fontFamily:'monospace' }}>
+                {fmtMoney(m.calculated_benefit_value)}
+              </p>
+              <p style={{ fontSize:10, color:'var(--text-muted)', marginTop:3 }}>
+                Fórmula: (Aporte entidad acumulado × 12%) ÷ 112%
+              </p>
+            </div>
+          )}
           {m.payment_method_modification && <DField label="Modificación forma de pago" value={m.payment_method_modification} />}
         </DSub>
       )}
@@ -409,6 +428,17 @@ export default function ProjectViewPage() {
     .filter(m => ['ADDITION','BOTH'].includes(m.modification_type) && m.is_active && m.addition_value)
     .reduce((s, m) => s + (parseFloat(m.addition_value) || 0), 0)
 
+  // Beneficio institucional vigente: tomar el calculated_benefit_value
+  // de la última adición activa (es el acumulado más reciente)
+  const beneficioVigente = (() => {
+    const adiciones = mods
+      .filter(m => ['ADDITION','BOTH'].includes(m.modification_type) && m.is_active && m.calculated_benefit_value)
+      .sort((a, b) => a.modification_number - b.modification_number)
+    return adiciones.length > 0
+      ? parseFloat(adiciones[adiciones.length - 1].calculated_benefit_value)
+      : null
+  })()
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
 
@@ -422,7 +452,7 @@ export default function ProjectViewPage() {
           <div style={{ width: 1, height: 24, background: 'var(--border-color)' }} />
           <div>
             <h1 style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-              {p.project_year} · {p.external_project_number || `#${p.project_id}`}
+              {p.project_year}{p.external_project_number ? ` #${p.external_project_number}` : ''} · #{p.project_id}
             </h1>
             <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{p.project_name?.substring(0, 80)}</p>
           </div>
@@ -492,11 +522,75 @@ export default function ProjectViewPage() {
             {/* ✅ Adiciones activas: solo si existen */}
             {adicionesActivas > 0 && (
               <div style={{ marginTop: 12, padding: '14px 16px', borderRadius: 10, background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.25)' }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#065F46', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 10 }}>Adiciones al contrato</p>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#065F46', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 10 }}>
+                  Adiciones al contrato
+                </p>
                 <Grid cols={2}>
                   <Field label="Total adicionado" value={fmtMoney(adicionesActivas)} mono />
                   <Field label="Valor total vigente" value={fmtMoney(parseFloat(p.project_value || 0) + adicionesActivas)} mono />
                 </Grid>
+
+                {/* Aportes acumulados totales */}
+                {(() => {
+                  const adicionesList = mods.filter(m => ['ADDITION','BOTH'].includes(m.modification_type) && m.is_active)
+                  const totalEntidadAdiciones    = adicionesList.reduce((s,m) => s + (parseFloat(m.entity_contribution_addition)    || 0), 0)
+                  const totalUnivAdiciones       = adicionesList.reduce((s,m) => s + (parseFloat(m.university_contribution_addition) || 0), 0)
+                  const hayDesglose = totalEntidadAdiciones > 0 || totalUnivAdiciones > 0
+                  if (!hayDesglose) return null
+                  return (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(16,185,129,0.2)' }}>
+                      <Grid cols={2}>
+                        <div>
+                          <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>
+                            Aporte total entidad
+                          </p>
+                          <p style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {fmtMoney(parseFloat(p.entity_contribution || 0) + totalEntidadAdiciones)}
+                          </p>
+                          <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                            Original {fmtMoney(p.entity_contribution)} + adiciones {fmtMoney(totalEntidadAdiciones)}
+                          </p>
+                        </div>
+                        <div>
+                          <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>
+                            Aporte total universidad
+                          </p>
+                          <p style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {fmtMoney(parseFloat(p.university_contribution || 0) + totalUnivAdiciones)}
+                          </p>
+                          <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                            Original {fmtMoney(p.university_contribution)} + adiciones {fmtMoney(totalUnivAdiciones)}
+                          </p>
+                        </div>
+                      </Grid>
+                    </div>
+                  )
+                })()}
+                {beneficioVigente && (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(16,185,129,0.2)' }}>
+                    <Grid cols={2}>
+                      <div>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>
+                          Beneficio institucional original
+                        </p>
+                        <p style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 500, color: 'var(--text-primary)' }}>
+                          {fmtMoney(p.institutional_benefit_value)}
+                        </p>
+                      </div>
+                      <div style={{ background: 'rgba(5,150,105,0.1)', border: '1px solid rgba(5,150,105,0.3)', borderRadius: 8, padding: '10px 14px' }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: '#065F46', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>
+                          Nuevo beneficio institucional vigente
+                        </p>
+                        <p style={{ fontSize: 16, fontWeight: 800, color: '#059669', fontFamily: 'monospace', margin: 0 }}>
+                          {fmtMoney(beneficioVigente)}
+                        </p>
+                        <p style={{ fontSize: 10, color: '#065F46', marginTop: 3 }}>
+                          ((Entidad acumulada × 12%) ÷ 112%)
+                        </p>
+                      </div>
+                    </Grid>
+                  </div>
+                )}
               </div>
             )}
           </Section>

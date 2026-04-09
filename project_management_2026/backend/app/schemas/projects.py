@@ -1,6 +1,6 @@
-# backend/app/schemas/projects.py — v5.0
-# CAMBIO: Eliminado internal_project_number de ProjectOut y ProjectCreate.
-#         El proyecto se identifica únicamente por project_id.
+# backend/app/schemas/projects.py — v5.1
+# CAMBIO v5.1: Agregados 3 campos en ModificationCreate para desglose de adiciones:
+#   entity_contribution_addition, university_contribution_addition, calculated_benefit_value
 from pydantic import BaseModel
 from typing import Optional, List, Any
 from datetime import datetime, date
@@ -17,7 +17,6 @@ class ProjectTypeOut(BaseModel):
 class ProjectOut(BaseModel):
     project_id: int
     project_year: int
-    # internal_project_number ELIMINADO
     external_project_number: Optional[str] = None
     project_name: str
     project_purpose: str
@@ -62,7 +61,6 @@ class ProjectOut(BaseModel):
 
 class ProjectCreate(BaseModel):
     project_year: int
-    # internal_project_number ELIMINADO — ya no existe en la tabla
     external_project_number: Optional[str] = None
     project_name: str
     project_purpose: str
@@ -95,7 +93,6 @@ class ProjectCreate(BaseModel):
 
 
 class ProjectUpdate(BaseModel):
-    # ── Campos editables ──────────────────────────────────────────────
     external_project_number: Optional[str] = None
     project_name: Optional[str] = None
     project_purpose: Optional[str] = None
@@ -113,8 +110,6 @@ class ProjectUpdate(BaseModel):
     entity_contribution: Optional[Decimal] = None
     beneficiaries_count: Optional[int] = None
     subscription_date: Optional[date] = None
-    # ── start_date y end_date NO están aquí — son inmutables ─────────
-    # Las prórrogas se registran en project_modifications.new_end_date
     ordering_official_id: Optional[int] = None
     main_email: Optional[str] = None
     administrative_act: Optional[str] = None
@@ -125,6 +120,13 @@ class ProjectUpdate(BaseModel):
     minutes_date: Optional[date] = None
     minutes_number: Optional[str] = None
     supervisor_type: Optional[str] = None
+
+
+class ProjectTypeOut(BaseModel):
+    project_type_id: int
+    type_name: str
+    is_active: bool
+    model_config = {"from_attributes": True}
 
 
 # ── RUP ──────────────────────────────────────────────────────────────
@@ -220,7 +222,11 @@ class ModificationCreate(BaseModel):
     approval_date: date
     administrative_act: Optional[str] = None
     justification: Optional[str] = None
+    # ── Adición ──────────────────────────────────────────────────────
     addition_value: Optional[Decimal] = None
+    entity_contribution_addition: Optional[Decimal] = None        # ← NUEVO
+    university_contribution_addition: Optional[Decimal] = None    # ← NUEVO
+    # ─────────────────────────────────────────────────────────────────
     extension_days: Optional[int] = None
     new_end_date: Optional[date] = None
     new_total_value: Optional[Decimal] = None
@@ -247,6 +253,9 @@ class SuspensionRestartPatch(BaseModel):
 
 
 class ClauseChangeCreate(BaseModel):
+    clause_number: Optional[str] = '1'
+    clause_name: Optional[str] = 'Modificación Contractual'
+    new_clause_text: Optional[str] = None
     modification_description: str
     requires_resource_liberation: bool = False
     cdp_to_release: Optional[str] = None
@@ -255,6 +264,7 @@ class ClauseChangeCreate(BaseModel):
 
 
 class AssignmentCreate(BaseModel):
+    assignment_type: str
     assignor_name: str
     assignor_id: Optional[str] = None
     assignor_id_type: Optional[str] = None
@@ -268,12 +278,28 @@ class AssignmentCreate(BaseModel):
     value_pending_to_assignor: Optional[Decimal] = None
     cdp: Optional[str] = None
     rp: Optional[str] = None
-    guarantee_value: Optional[Decimal] = None
+    guarantee_modification_request: Optional[str] = None
 
 
 class LiquidationCreate(BaseModel):
-    liquidation_date: Optional[date] = None
-    execution_percentage: Optional[Decimal] = None
-    supervisor_liquidation_request: Optional[str] = None
-    entity_liquidation_request: Optional[str] = None
-    observations: Optional[str] = None
+    liquidation_type: str = 'BILATERAL'
+    liquidation_date: date
+    execution_percentage: Decimal
+    executed_value: Decimal
+    supervisor_liquidation_request: str
+    pending_payment_value: Optional[Decimal] = None
+    value_to_release: Optional[Decimal] = None
+    cdp: Optional[str] = None
+    cdp_value: Optional[Decimal] = None
+    rp: Optional[str] = None
+    rp_value: Optional[Decimal] = None
+    initial_contract_value: Optional[Decimal] = None
+    final_value_with_additions: Optional[Decimal] = None
+    resolution_number: Optional[str] = None
+    resolution_date: Optional[date] = None
+    unilateral_cause: Optional[str] = None
+    cause_analysis: Optional[str] = None
+    liquidation_signature_date: Optional[date] = None
+    additions_summary: Optional[Any] = None
+    extensions_summary: Optional[Any] = None
+    suspensions_summary: Optional[Any] = None

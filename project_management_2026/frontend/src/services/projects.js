@@ -1,5 +1,5 @@
-// frontend/src/services/projects.js — v5.0
-// CAMBIO: Eliminado getNextNumber (el endpoint /next-number/{year} ya no existe)
+// frontend/src/services/projects.js — v5.1
+// CAMBIO: Agregado documentsService.zip para descargar expediente completo
 import api from './api'
 
 export const projectsService = {
@@ -44,11 +44,13 @@ export const emailsService = {
 }
 
 export const documentsService = {
-  list:     (projectId)   => api.get(`/projects/${projectId}/documents/`),
+  list:     (projectId)          => api.get(`/projects/${projectId}/documents/`),
   upload:   (projectId, formData) => api.post(`/projects/${projectId}/documents/upload`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
-  download: (documentId)  => api.get(`/documents/${documentId}/download`, { responseType: 'blob' }),
-  delete:   (documentId)  => api.delete(`/documents/${documentId}`),
-  types:    ()            => api.get('/document-types/'),
+  download: (documentId)         => api.get(`/documents/${documentId}/download`, { responseType: 'blob' }),
+  delete:   (documentId)         => api.delete(`/documents/${documentId}`),
+  types:    ()                   => api.get('/document-types/'),
+  // ✅ NUEVO: descargar expediente completo como ZIP
+  zip:      (projectId)          => api.get(`/projects/${projectId}/documents/zip`, { responseType: 'blob' }),
 }

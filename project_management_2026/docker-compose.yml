@@ -6,15 +6,28 @@ services:
     container_name: siexud_backend
     restart: unless-stopped
     environment:
+      # Base de datos
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
+      # Seguridad
       - SECRET_KEY=${SECRET_KEY}
       - ALGORITHM=${ALGORITHM}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
+      # Almacenamiento local
       - UPLOAD_DIR=${UPLOAD_DIR}
+      # SFTP
+      - SFTP_HOST=${SFTP_HOST}
+      - SFTP_PORT=${SFTP_PORT}
+      - SFTP_USER=${SFTP_USER}
+      - SFTP_PASSWORD=${SFTP_PASSWORD}
+      - SFTP_BASE_DIR=${SFTP_BASE_DIR}
+      - SFTP_ENABLED=${SFTP_ENABLED}
+      # URLs HTTP
+      - HTTP_NEW_BASE=${HTTP_NEW_BASE}
+      - HTTP_LEGACY_BASE=${HTTP_LEGACY_BASE}
     volumes:
       - ./backend/app:/app/app
       - ./documentos:/docs_storage

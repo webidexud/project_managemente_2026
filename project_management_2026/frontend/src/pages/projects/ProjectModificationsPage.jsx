@@ -100,9 +100,28 @@ function ModDetail({ m }) {
       {(m.addition_value || m.new_total_value) && (
         <DSection title="Adición Presupuestal" color="#10B981" icon={DollarSign}>
           <DGrid cols={2}>
-            <DField label="Valor de la adición" value={fmtPesos(m.addition_value)} color="#10B981" mono />
-            <DField label="Nuevo valor total" value={fmtPesos(m.new_total_value)} color="#10B981" mono />
+            <DField label="Valor total de la adición" value={fmtPesos(m.addition_value)} color="#10B981" mono />
+            <DField label="Nuevo valor total contrato" value={fmtPesos(m.new_total_value)} color="#10B981" mono />
           </DGrid>
+          {(m.entity_contribution_addition || m.university_contribution_addition) && (
+            <DGrid cols={2}>
+              <DField label="Aporte entidad en adición" value={fmtPesos(m.entity_contribution_addition)} mono />
+              <DField label="Aporte universidad en adición" value={fmtPesos(m.university_contribution_addition)} mono />
+            </DGrid>
+          )}
+          {m.calculated_benefit_value && (
+            <div style={{ marginTop:8, padding:'10px 14px', borderRadius:8, background:'rgba(5,150,105,0.08)', border:'1px solid rgba(5,150,105,0.25)' }}>
+              <p style={{ fontSize:10, fontWeight:700, color:'#065F46', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:4 }}>
+                Beneficio institucional vigente tras esta adición
+              </p>
+              <p style={{ fontSize:15, fontWeight:800, color:'#059669', fontFamily:'monospace' }}>
+                {fmtPesos(m.calculated_benefit_value)}
+              </p>
+              <p style={{ fontSize:10, color:'var(--text-muted)', marginTop:3 }}>
+                ((Aporte entidad acumulado × 12%) ÷ 112%)
+              </p>
+            </div>
+          )}
           {m.payment_method_modification && <DField label="Modificación forma de pago" value={m.payment_method_modification} />}
           {m.requires_policy_update && <DField label="Actualización de póliza" value={m.policy_update_description || 'Sí'} />}
         </DSection>
@@ -307,7 +326,7 @@ export default function ProjectModificationsPage() {
 
   // ✅ Identificador del proyecto: external_project_number o project_id
   const proyectoLabel = project
-    ? `${project.project_year}${project.external_project_number ? ` · ${project.external_project_number}` : ` #${project.project_id}`}`
+    ? `${project.project_year}${project.external_project_number ? ` #${project.external_project_number}` : ''} · #${project.project_id}`
     : '…'
 
   return (

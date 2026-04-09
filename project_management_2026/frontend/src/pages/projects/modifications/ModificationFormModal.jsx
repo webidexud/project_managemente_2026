@@ -36,6 +36,8 @@ const EMPTY = {
   modification_type: '',
   administrative_act: '', approval_date: '', justification: '',
   addition_value: '', new_total_value: '',
+  entity_contribution_addition: '', university_contribution_addition: '',
+  calculated_benefit_value: null,
   requires_payment_modification: false, payment_method_modification: '',
   requires_policy_update: false, policy_update_description: '',
   new_end_date: '', extension_days: 0, extension_period_text: '',
@@ -67,7 +69,10 @@ function editDataToForm(m) {
     administrative_act:            m.administrative_act || '',
     approval_date:                 m.approval_date || '',
     justification:                 m.justification || '',
-    addition_value:                m.addition_value || '',
+    addition_value:                      m.addition_value || '',
+    entity_contribution_addition:        m.entity_contribution_addition || '',
+    university_contribution_addition:    m.university_contribution_addition || '',
+    calculated_benefit_value:            m.calculated_benefit_value || null,
     new_total_value:               m.new_total_value || '',
     requires_payment_modification: !!m.payment_method_modification,
     payment_method_modification:   m.payment_method_modification || '',
@@ -272,20 +277,81 @@ function SecGenerales({ form, set, modType }) {
 }
 
 /* Solo valor, sin checkboxes — para uso en BOTH */
-function SecAdicionSoloValor({ form, set }) {
+/* ── Bloque de desglose de aportes (compartido por SecAdicion y SecAdicionSoloValor) ── */
+function DesglosAportes({ form, set, project, prevMods = [] }) {
+  // Calcula en tiempo real el beneficio acumulado:
+  // ((aporte_entidad_original + Σ aportes_entidad_adiciones_activas + nueva_adicion_entidad) * 12%) / 112%
+  const beneficioCalculado = (() => {
+    const entidadOriginal  = parseNum(project?.entity_contribution)
+    const adicionesActivas = (prevMods || [])
+      .filter(m => ['ADDITION','BOTH'].includes(m.modification_type) && m.is_active && m.entity_contribution_addition)
+      .reduce((s, m) => s + parseNum(m.entity_contribution_addition), 0)
+    const nuevaEntidad     = parseNum(form.entity_contribution_addition)
+    const totalEntidad     = entidadOriginal + adicionesActivas + nuevaEntidad
+    if (totalEntidad <= 0) return null
+    return Math.round((totalEntidad * 0.12) / 1.12)
+  })()
+
   return <>
-    <ST text="Adición Presupuestal" color="#10B981"/>
+    <ST text="Desglose de la Adición" color="#059669"/>
     <G cols={2}>
-      <F label="Valor de la Adición" required>
-        <PesosInput value={form.addition_value} onChange={v=>set('addition_value',v)}/>
+      <F label="Aporte Entidad en esta adición" hint="Parte que aporta la entidad contratante">
+        <PesosInput value={form.entity_contribution_addition}
+          onChange={v => set('entity_contribution_addition', v)}
+          placeholder="0"/>
       </F>
-      <MoneyRO label="Nuevo valor total" value={form.new_total_value}/>
+      <F label="Aporte Universidad en esta adición" hint="Parte que aporta la Universidad Distrital">
+        <PesosInput value={form.university_contribution_addition}
+          onChange={v => set('university_contribution_addition', v)}
+          placeholder="0"/>
+      </F>
     </G>
+
+    {/* Beneficio institucional calculado en tiempo real */}
+    {beneficioCalculado !== null && (
+      <div style={{
+        padding: '12px 16px', borderRadius: 10,
+        background: 'rgba(5,150,105,0.06)', border: '1px solid rgba(5,150,105,0.25)',
+        marginBottom: 16,
+      }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: '#065F46', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>
+          Beneficio institucional vigente tras esta adición
+        </p>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+          Fórmula: (Aporte entidad acumulado × 12%) ÷ 112%
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Aporte entidad original</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+              {fmtPesos(project?.entity_contribution)}
+            </p>
+          </div>
+          <span style={{ fontSize: 18, color: 'var(--text-muted)' }}>+</span>
+          <div>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Aportes entidad adiciones</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#10B981', fontFamily: 'monospace' }}>
+              {fmtPesos((prevMods||[]).filter(m=>['ADDITION','BOTH'].includes(m.modification_type)&&m.is_active&&m.entity_contribution_addition).reduce((s,m)=>s+parseNum(m.entity_contribution_addition),0) + parseNum(form.entity_contribution_addition))}
+            </p>
+          </div>
+          <span style={{ fontSize: 18, color: 'var(--text-muted)' }}>=</span>
+          <div style={{ background: 'rgba(5,150,105,0.1)', border: '1px solid rgba(5,150,105,0.3)', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
+            <p style={{ fontSize: 11, color: '#065F46', fontWeight: 700, marginBottom: 2 }}>Nuevo beneficio UD</p>
+            <p style={{ fontSize: 18, fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>
+              {fmtPesos(beneficioCalculado)}
+            </p>
+          </div>
+        </div>
+        <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8 }}>
+          ⚠️ Este valor se guarda como historial en la modificación. El beneficio original del proyecto no se modifica.
+        </p>
+      </div>
+    )}
   </>
 }
 
-/* Con checkboxes — para uso en ADDITION solo */
-function SecAdicion({ form, set }) {
+/* Solo valor + desglose — para uso en BOTH */
+function SecAdicionSoloValor({ form, set, project, prevMods }) {
   return <>
     <ST text="Adición Presupuestal" color="#10B981"/>
     <G cols={2}>
@@ -294,6 +360,21 @@ function SecAdicion({ form, set }) {
       </F>
       <MoneyRO label="Nuevo valor total" value={form.new_total_value}/>
     </G>
+    <DesglosAportes form={form} set={set} project={project} prevMods={prevMods}/>
+  </>
+}
+
+/* Con checkboxes + desglose — para uso en ADDITION solo */
+function SecAdicion({ form, set, project, prevMods }) {
+  return <>
+    <ST text="Adición Presupuestal" color="#10B981"/>
+    <G cols={2}>
+      <F label="Valor de la Adición" required>
+        <PesosInput value={form.addition_value} onChange={v=>set('addition_value',v)}/>
+      </F>
+      <MoneyRO label="Nuevo valor total" value={form.new_total_value}/>
+    </G>
+    <DesglosAportes form={form} set={set} project={project} prevMods={prevMods}/>
     <G cols={1} style={{marginTop:8}}>
       <Checkbox checked={form.requires_payment_modification} onChange={v=>set('requires_payment_modification',v)} label="¿Requiere modificación de la forma de pago?"/>
     </G>
@@ -640,7 +721,9 @@ export default function ModificationFormModal({ onClose, project, prevMods=[], s
           administrative_act:        form.administrative_act || null,
           approval_date:             form.approval_date,
           justification:             form.justification || null,
-          addition_value:            ['ADDITION','BOTH'].includes(modType) ? parseNum(form.addition_value)||null : null,
+          addition_value:                   ['ADDITION','BOTH'].includes(modType) ? parseNum(form.addition_value)||null : null,
+          entity_contribution_addition:     ['ADDITION','BOTH'].includes(modType) ? parseNum(form.entity_contribution_addition)||null : null,
+          university_contribution_addition: ['ADDITION','BOTH'].includes(modType) ? parseNum(form.university_contribution_addition)||null : null,
           new_end_date:              ['EXTENSION','BOTH'].includes(modType) ? form.new_end_date||null : null,
           extension_days:            ['EXTENSION','BOTH'].includes(modType) ? form.extension_days||null : null,
           extension_period_text:     ['EXTENSION','BOTH'].includes(modType) ? form.extension_period_text||null : null,
@@ -661,7 +744,9 @@ export default function ModificationFormModal({ onClose, project, prevMods=[], s
           approval_date:             form.approval_date,
           administrative_act:        form.administrative_act||null,
           justification:             form.justification||null,
-          addition_value:            ['ADDITION','BOTH'].includes(modType) ? parseNum(form.addition_value)||null : null,
+          addition_value:                   ['ADDITION','BOTH'].includes(modType) ? parseNum(form.addition_value)||null : null,
+          entity_contribution_addition:     ['ADDITION','BOTH'].includes(modType) ? parseNum(form.entity_contribution_addition)||null : null,
+          university_contribution_addition: ['ADDITION','BOTH'].includes(modType) ? parseNum(form.university_contribution_addition)||null : null,
           new_end_date:              ['EXTENSION','BOTH'].includes(modType) ? form.new_end_date||null : null,
           extension_days:            ['EXTENSION','BOTH'].includes(modType) ? form.extension_days||null : null,
           extension_period_text:     ['EXTENSION','BOTH'].includes(modType) ? form.extension_period_text||null : null,
@@ -741,9 +826,9 @@ export default function ModificationFormModal({ onClose, project, prevMods=[], s
           {/* Secciones según tipo */}
           {modType && <>
             <SecGenerales form={form} set={set} modType={modType}/>
-            {modType==='ADDITION'    && <SecAdicion form={form} set={set}/>}
+            {modType==='ADDITION'    && <SecAdicion form={form} set={set} project={project} prevMods={prevMods}/>}
             {modType==='EXTENSION'   && <SecProrrhoga form={form} set={set} project={project} prevMods={prevMods}/>}
-            {modType==='BOTH'        && <><SecAdicionSoloValor form={form} set={set}/><SecProrrhoga form={form} set={set} project={project} prevMods={prevMods}/></>}
+            {modType==='BOTH'        && <><SecAdicionSoloValor form={form} set={set} project={project} prevMods={prevMods}/><SecProrrhoga form={form} set={set} project={project} prevMods={prevMods}/></>}
             {modType==='CONTRACTUAL' && <SecContractual form={form} set={set}/>}
             {modType==='SUSPENSION'  && <SecSuspension form={form} set={set}/>}
             {modType==='RESTART'     && <SecReinicio form={form} set={set} suspensions={suspensions}/>}

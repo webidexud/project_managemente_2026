@@ -1,20 +1,40 @@
+# backend/app/core/config.py
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    # Database
-    db_host: str = "10.20.100.8"
-    db_port: int = 5432
-    db_user: str = "admin"
-    db_password: str = ""
-    db_name: str = "nuevo_siexud"
 
-    # JWT
-    secret_key: str = "cambiar_por_clave_segura"
-    algorithm: str = "HS256"
+    # ── Base de datos ─────────────────────────────────────────────
+    db_host:     str = "10.20.100.8"
+    db_port:     int = 5432
+    db_user:     str = "admin"
+    db_password: str = ""
+    db_name:     str = "nuevo_siexud"
+
+    # ── JWT ───────────────────────────────────────────────────────
+    secret_key:                  str = "cambiar_por_clave_segura"
+    algorithm:                   str = "HS256"
     access_token_expire_minutes: int = 480
 
+    # ── Almacenamiento local (volumen Docker) ─────────────────────
+    upload_dir: str = "/docs_storage"
+
+    # ── SFTP (servidor de archivos) ───────────────────────────────
+    sftp_host:     str  = "200.69.103.17"
+    sftp_port:     int  = 22
+    sftp_user:     str  = "oracle"
+    sftp_password: str  = ""
+    sftp_base_dir: str  = "/var/www/html/idexud/siexud/actasproy"
+    sftp_enabled:  bool = True
+
+    # ── URLs HTTP de acceso a archivos ────────────────────────────
+    # Archivos nuevos (subidos desde SIEXUD)
+    http_new_base:    str = "http://200.69.103.17/idexud/siexud/actasproy"
+    # Archivos legados (sistema anterior)
+    http_legacy_base: str = "http://siexud.udistrital.edu.co/idexud/siexud/actasproy/upload"
+
+    # ── Propiedades calculadas ────────────────────────────────────
     @property
     def database_url(self) -> str:
         return (

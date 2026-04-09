@@ -1,4 +1,4 @@
-// frontend/src/App.jsx — v4.2 (agregar ruta de documentos)
+// frontend/src/App.jsx — v4.3
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { ThemeProvider } from './context/ThemeContext'
@@ -16,6 +16,7 @@ import ExecutionModalitiesPage from './pages/catalogs/ExecutionModalitiesPage'
 import FinancingTypesPage from './pages/catalogs/FinancingTypesPage'
 import OrderingOfficialsPage from './pages/catalogs/OrderingOfficialsPage'
 import ProjectStatusesPage from './pages/catalogs/ProjectStatusesPage'
+import DocumentTypesPage from './pages/catalogs/DocumentTypesPage'
 
 export default function App() {
   return (
@@ -39,24 +40,25 @@ export default function App() {
         />
         <Routes>
           {/* Pantalla completa (sin AppLayout) */}
-          <Route path="/projects/new"                    element={<ProjectFormPage />} />
-          <Route path="/projects/:id/edit"               element={<ProjectFormPage />} />
-          <Route path="/projects/:id/view"               element={<ProjectViewPage />} />
-          <Route path="/projects/:id/modifications"      element={<ProjectModificationsPage />} />
-          <Route path="/projects/:id/documents"          element={<ProjectDocumentsPage />} />
+          <Route path="/projects/new"               element={<ProjectFormPage />} />
+          <Route path="/projects/:id/edit"          element={<ProjectFormPage />} />
+          <Route path="/projects/:id/view"          element={<ProjectViewPage />} />
+          <Route path="/projects/:id/modifications" element={<ProjectModificationsPage />} />
+          <Route path="/projects/:id/documents"     element={<ProjectDocumentsPage />} />
 
           <Route element={<AppLayout />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/projects"  element={<ProjectsPage />} />
 
-            <Route path="/catalogs/entities"              element={<EntitiesPage />} />
-            <Route path="/catalogs/entity-types"          element={<EntityTypesPage />} />
-            <Route path="/catalogs/departments"           element={<ExecutingDepartmentsPage />} />
-            <Route path="/catalogs/modalities"            element={<ExecutionModalitiesPage />} />
-            <Route path="/catalogs/financing"             element={<FinancingTypesPage />} />
-            <Route path="/catalogs/officials"             element={<OrderingOfficialsPage />} />
-            <Route path="/catalogs/statuses"              element={<ProjectStatusesPage />} />
+            <Route path="/catalogs/entities"          element={<EntitiesPage />} />
+            <Route path="/catalogs/entity-types"      element={<EntityTypesPage />} />
+            <Route path="/catalogs/departments"       element={<ExecutingDepartmentsPage />} />
+            <Route path="/catalogs/modalities"        element={<ExecutionModalitiesPage />} />
+            <Route path="/catalogs/financing"         element={<FinancingTypesPage />} />
+            <Route path="/catalogs/officials"         element={<OrderingOfficialsPage />} />
+            <Route path="/catalogs/statuses"          element={<ProjectStatusesPage />} />
+            <Route path="/catalogs/document-types"    element={<DocumentTypesPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

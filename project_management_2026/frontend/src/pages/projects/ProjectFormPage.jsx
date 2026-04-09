@@ -489,7 +489,7 @@ export default function ProjectFormPage() {
             <div style={{ width:1, height:24, background:'var(--border-color)' }}/>
             <div>
               <h1 style={{ fontSize:15, fontWeight:800, color:'var(--text-primary)', margin:0 }}>
-                {isEdit ? `Editando proyecto · ${form.project_year}` : `Nuevo proyecto · ${form.project_year}`}
+                {isEdit ? `Editando · ${form.project_year}${form.external_project_number ? ` #${form.external_project_number}` : ''} · #${id}` : `Nuevo proyecto · ${form.project_year}`}
               </h1>
               <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>
                 {completedCount} de {SECTIONS.length} pasos completados

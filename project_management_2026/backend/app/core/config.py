@@ -17,10 +17,10 @@ class Settings(BaseSettings):
     algorithm:                   str = "HS256"
     access_token_expire_minutes: int = 480
 
-    # ── Almacenamiento local (volumen Docker) ─────────────────────
+    # ── Almacenamiento local ──────────────────────────────────────
     upload_dir: str = "/docs_storage"
 
-    # ── SFTP (servidor de archivos) ───────────────────────────────
+    # ── SFTP ─────────────────────────────────────────────────────
     sftp_host:     str  = "200.69.103.17"
     sftp_port:     int  = 22
     sftp_user:     str  = "oracle"
@@ -28,13 +28,13 @@ class Settings(BaseSettings):
     sftp_base_dir: str  = "/var/www/html/idexud/siexud/actasproy"
     sftp_enabled:  bool = True
 
-    # ── URLs HTTP de acceso a archivos ────────────────────────────
-    # Archivos nuevos (subidos desde SIEXUD)
+    # ── URLs HTTP ─────────────────────────────────────────────────
     http_new_base:    str = "http://200.69.103.17/idexud/siexud/actasproy"
-    # Archivos legados (sistema anterior)
     http_legacy_base: str = "http://siexud.udistrital.edu.co/idexud/siexud/actasproy/upload"
 
-    # ── Propiedades calculadas ────────────────────────────────────
+    # ── Anthropic IA ─────────────────────────────────────────────
+    anthropic_api_key: str = ""
+
     @property
     def database_url(self) -> str:
         return (
